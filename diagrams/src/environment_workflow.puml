@@ -1,0 +1,59 @@
+@startuml Environment Workflow
+!theme cerulean
+skinparam backgroundColor white
+skinparam defaultTextAlignment center
+
+title Java Application Environment Promotion Workflow
+
+skinparam rectangle {
+  BackgroundColor #f5f5f5
+  BorderColor #2c3e50
+  FontColor #2c3e50
+  BorderThickness 2
+  Shadowing false
+}
+
+skinparam arrow {
+  Color #3498db
+  Thickness 2
+}
+
+rectangle "Git Branches" as git #e3f2fd {
+  rectangle "feature/*" as feature
+  rectangle "develop" as develop
+  rectangle "release/*" as release
+  rectangle "main/master" as main
+}
+
+rectangle "Environments" as envs #e0f7fa {
+  rectangle "Test" as test
+  rectangle "Staging" as staging
+  rectangle "Production" as prod
+}
+
+feature -down-> test : Manual Trigger
+develop -down-> test : Auto Trigger
+develop -down-> staging : Manual Trigger
+release -down-> staging : Manual Trigger
+main -down-> prod : Manual Trigger
+
+note right of test
+  Single server deployment
+  Basic health checks
+  Email notifications
+end note
+
+note right of staging
+  Multi-server deployment
+  Extended health checks
+  Email notifications
+end note
+
+note right of prod
+  Multi-server deployment
+  Comprehensive health checks
+  Email & Slack notifications
+  Automated rollback capability
+end note
+
+@enduml

@@ -1,0 +1,66 @@
+@startuml Rollback Strategy
+!theme cerulean
+skinparam backgroundColor white
+skinparam defaultTextAlignment center
+
+title Java Application Rollback Strategy
+
+skinparam rectangle {
+  BackgroundColor #f5f5f5
+  BorderColor #2c3e50
+  FontColor #2c3e50
+  BorderThickness 2
+  Shadowing false
+}
+
+skinparam arrow {
+  Color #3498db
+  Thickness 2
+}
+
+skinparam note {
+  BackgroundColor #fff8dc
+  BorderColor #d9a21b
+  FontColor #333333
+}
+
+rectangle "Deployment Failure" as failure #ffebee
+
+rectangle "Automatic Rollback" as auto #e8f5e9 {
+  rectangle "Find Last Successful Deploy" as last_deploy
+  rectangle "Fall Back to Latest Backup" as latest_backup
+  rectangle "Update Symlink" as update_symlink_auto
+  rectangle "Restart Service" as restart_auto
+  rectangle "Verify Health" as health_auto
+}
+
+rectangle "Manual Rollback" as manual #e3f2fd {
+  rectangle "Select Backup Version" as select_backup
+  rectangle "Update Symlink" as update_symlink_manual
+  rectangle "Restart Service" as restart_manual
+  rectangle "Verify Health" as health_manual
+}
+
+failure -down-> auto : Trigger
+failure -right-> manual : User Initiated
+
+last_deploy -down-> latest_backup : If Not Found
+latest_backup -down-> update_symlink_auto
+update_symlink_auto -down-> restart_auto
+restart_auto -down-> health_auto
+
+select_backup -down-> update_symlink_manual
+update_symlink_manual -down-> restart_manual
+restart_manual -down-> health_manual
+
+note right of auto
+  Triggered automatically when 
+  deployment health check fails
+end note
+
+note right of manual
+  Triggered manually by user
+  from GitLab pipeline interface
+end note
+
+@enduml

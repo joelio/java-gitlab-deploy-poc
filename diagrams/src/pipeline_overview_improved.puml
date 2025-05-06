@@ -1,0 +1,61 @@
+@startuml Pipeline Overview
+!theme cerulean
+skinparam backgroundColor white
+skinparam defaultTextAlignment center
+
+<style>
+rectangleContainer {
+  FontColor #2c3e50
+  FontSize 14
+  FontStyle bold
+}
+</style>
+
+title Java Deployment Pipeline
+
+skinparam rectangle {
+  BackgroundColor #f5f5f5
+  BorderColor #2c3e50
+  FontColor #2c3e50
+  BorderThickness 1
+  Shadowing false
+  RoundCorner 8
+}
+
+skinparam arrow {
+  Color #3498db
+  Thickness 1.5
+}
+
+' Simplified layout for narrower wiki page
+rectangle "Validate" as validate #e3f2fd {
+  rectangle "Branch Rules" as branch_check #f8f9fa
+}
+
+rectangle "Build" as build #bbdefb {
+  rectangle "Maven Wrapper" as mvnw #f8f9fa
+  rectangle "Artifact" as artifact #f8f9fa
+}
+
+rectangle "Deploy" as deploy #90caf9 {
+  rectangle "Backup" as backup #f8f9fa
+  rectangle "Service" as service #f8f9fa
+  rectangle "Health Check" as health #f8f9fa
+}
+
+rectangle "Notify" as notify #b2ebf2 {
+  rectangle "Notification Service" as channel #f8f9fa
+}
+
+rectangle "Rollback" as rollback #80deea {
+  rectangle "Auto/Manual" as rollback_type #f8f9fa
+}
+
+' Cleaner horizontal flow
+validate -right-> build
+build -right-> deploy
+deploy -right-> notify
+deploy -down-> rollback : Failure
+rollback -right-> notify : After Rollback
+
+@enduml

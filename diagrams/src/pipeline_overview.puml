@@ -1,0 +1,53 @@
+@startuml Pipeline Overview
+!theme cerulean
+skinparam backgroundColor white
+skinparam defaultTextAlignment center
+skinparam componentStyle rectangle
+
+title Java Deployment Pipeline Overview
+
+skinparam rectangle {
+  BackgroundColor #f5f5f5
+  BorderColor #2c3e50
+  FontColor #2c3e50
+  BorderThickness 2
+  Shadowing false
+}
+
+skinparam arrow {
+  Color #3498db
+  Thickness 2
+}
+
+rectangle "Validate" as validate #e3f2fd {
+  file "Branch Validation" as branch_check
+}
+
+rectangle "Build" as build #e1f5fe {
+  file "Maven Wrapper" as mvnw
+  file "Artifact Creation" as artifact
+}
+
+rectangle "Deploy" as deploy #e0f7fa {
+  file "Backup" as backup
+  file "Service Setup" as service
+  file "Health Check" as health
+}
+
+rectangle "Notify" as notify #e0f2f1 {
+  file "Success/Failure" as status
+  file "Email/Slack" as channel
+}
+
+rectangle "Rollback" as rollback #e8f5e9 {
+  file "Auto Rollback" as auto
+  file "Manual Rollback" as manual
+}
+
+validate -right-> build
+build -right-> deploy
+deploy -right-> notify
+deploy -down-> rollback : On Failure
+rollback -right-> notify : After Rollback
+
+@enduml
