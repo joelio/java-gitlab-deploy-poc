@@ -2,7 +2,7 @@
 
 A modular, multi-environment GitLab CI/CD pipeline specifically designed for Java application deployment with automated rollback capabilities.
 
-![Java Pipeline Overview](diagrams/Java_Pipeline_Overview.png)
+![Java Pipeline Overview](diagrams/java_pipeline_overview.png)
 
 ## Table of Contents
 
@@ -127,13 +127,13 @@ The CI/CD pipeline is organized into the following stages:
 | **Notify** | Sends notifications about deployment status | • Email notifications<br>• Notification Service integration<br>• Detailed status reports |
 | **Rollback** | Handles automatic and manual rollbacks if needed | • Automatic failure detection<br>• Version history management<br>• One-click manual rollback |
 
-![Java Pipeline Overview](diagrams/Java_Pipeline_Overview.png)
+![Java Pipeline Overview](diagrams/java_pipeline_overview.png)
 
 *The diagram above illustrates the Java application deployment pipeline stages and their relationships.*
 
 ### Deployment Process Visualization
 
-![Deployment Process](diagrams/Java_Deployment_Process.png)
+![Deployment Process](diagrams/java_deployment_process.png)
 
 *The diagram above illustrates the Java application deployment process, from preparation through validation. It shows the step-by-step flow of how Java artifacts are deployed to target environments.*
 
@@ -157,7 +157,7 @@ The pipeline supports three environments with multi-server deployment capabiliti
 
 ### Environment Workflow Visualization
 
-![Environment Workflow](diagrams/Java_Environment_Workflow.png)
+![Environment Workflow](diagrams/java_environment_workflow.png)
 
 *The diagram above shows how Git branches map to deployment environments with appropriate controls. It illustrates the flow from development through test, staging, and production environments.*
 
@@ -202,7 +202,7 @@ The pipeline includes both automatic and manual rollback capabilities:
 
 ### Rollback Strategy Visualization
 
-![Rollback Strategy](diagrams/Java_Rollback_Strategy.png)
+![Rollback Strategy](diagrams/java_rollback_strategy.png)
 
 *The diagram above illustrates the automatic and manual rollback strategies with comprehensive testing. It shows how the system detects deployment failures and initiates rollbacks to maintain service availability.*
 
@@ -266,7 +266,7 @@ variables:
 
 The deployment process is optimized for Java applications:
 
-![Deployment Process](diagrams/Java_Deployment_Process.png)
+![Deployment Process](diagrams/java_deployment_process.png)
 
 *The diagram above shows the detailed steps in the Java application deployment process.*
 
@@ -323,7 +323,7 @@ Our comprehensive testing framework ensures that the pipeline works correctly in
 
 ### Testing Framework Visualization
 
-![Rollback Strategy Testing](diagrams/Java_Rollback_Strategy.png)
+![Rollback Strategy Testing](diagrams/java_rollback_strategy.png)
 
 *The diagram above illustrates the comprehensive testing of deployment and rollback functionality. It shows how the testing framework validates all aspects of the pipeline.*
 
