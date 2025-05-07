@@ -1,0 +1,508 @@
+##############################################################################
+# DEPLOYMENT FUNCTIONS
+#
+# This file defines all shell functions used throughout the CI/CD pipeline for
+# deployment operations. These functions handle SSH connections, file transfers,
+# service management, and deployment validation.
+#
+# KEY FEATURES:
+# - Comprehensive error handling and validation for all operations
+# - Detailed logging with timestamps and log levels
+# - Test mode support to simulate operations without making changes
+# - Fallback mechanisms for critical operations
+#
+# HOW TO USE:
+# 1. These functions are referenced in other CI files using the extends keyword
+# 2. Each function returns a non-zero exit code on failure for proper error handling
+# 3. For testing without making actual changes, set CI_TEST_MODE to "true"
+#
+# CUSTOMIZATION:
+# - Add new functions as needed for your specific deployment requirements
+# - Modify existing functions to match your infrastructure setup
+##############################################################################
+
+.functions:
+  script:
+    - |
+      # Common utility functions for deployment
+
+      # Log function with timestamp and log level
+      function log() {
+        local level=$1
+        local message=$2
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$level] $message"
+      }
+
+      # Function to deploy to multiple servers
+      function deploy_to_servers() {
+        local deploy_function=$1
+        shift
+        
+        # Check if multi-server deployment is enabled
+        if [ "$MULTI_SERVER_DEPLOYMENT" == "true" ]; then
+          log "INFO" "Multi-server deployment mode enabled"
+          
+          # Parse the JSON array of servers
+          # Remove brackets, quotes, and split by commas
+          local servers_str=${DEPLOY_HOSTS//[\[\]\"]/}
+          IFS=',' read -ra SERVER_ARRAY <<< "$servers_str"
+          
+          if [ ${#SERVER_ARRAY[@]} -eq 0 ]; then
+            log "ERROR" "No servers defined in DEPLOY_HOSTS array"
+            return 1
+          fi
+          
+          log "INFO" "Will deploy to ${#SERVER_ARRAY[@]} servers sequentially"
+          
+          # Deploy to each server sequentially
+          for server in "${SERVER_ARRAY[@]}"; do
+            # Trim whitespace
+            server=$(echo "$server" | xargs)
+            
+            log "INFO" "Deploying to server: $server"
+            local original_host=$DEPLOY_HOST
+            DEPLOY_HOST=$server
+            
+            # Call the specified deployment function with all arguments
+            "$deploy_function" "$@"
+            local exit_code=$?
+            
+            # Restore original host
+            DEPLOY_HOST=$original_host
+            
+            if [ $exit_code -ne 0 ]; then
+              log "ERROR" "Deployment failed on server: $server"
+              return $exit_code
+            fi
+            
+            log "INFO" "Successfully deployed to server: $server"
+          done
+          
+          log "INFO" "Multi-server deployment completed successfully"
+          return 0
+        else
+          # Single server mode - just call the function directly
+          log "INFO" "Single server deployment mode"
+          "$deploy_function" "$@"
+          return $?
+        fi
+      }
+
+      # Establish SSH connection with full validation
+      function ssh_cmd() {
+        local command=$1
+        
+        if [ -z "$command" ]; then
+          log "ERROR" "No command specified for SSH execution"
+          return 1
+        fi
+        
+        if [ "$CI_TEST_MODE" == "true" ]; then
+          log "TEST" "Would execute SSH command: $command"
+          return 0
+        fi
+        
+        log "DEBUG" "Executing SSH command: $command"
+        
+        # Execute command via SSH with error handling
+        ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ${APP_USER}@${DEPLOY_HOST} "$command"
+        local exit_code=$?
+        
+        if [ $exit_code -ne 0 ]; then
+          log "ERROR" "SSH command failed with exit code $exit_code"
+          log "ERROR" "Command was: $command"
+        fi
+        
+        return $exit_code
+      }
+
+      # Execute SSH command as root
+      function ssh_root_cmd() {
+        local command=$1
+        
+        if [ -z "$command" ]; then
+          log "ERROR" "No command specified for root SSH execution"
+          return 1
+        fi
+        
+        if [ "$CI_TEST_MODE" == "true" ]; then
+          log "TEST" "Would execute root SSH command: $command"
+          return 0
+        fi
+        
+        log "DEBUG" "Executing root SSH command: $command"
+        
+        # Execute command via SSH as root
+        ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 root@${DEPLOY_HOST} "$command"
+        local exit_code=$?
+        
+        if [ $exit_code -ne 0 ]; then
+          log "ERROR" "Root SSH command failed with exit code $exit_code"
+          log "ERROR" "Command was: $command"
+        fi
+        
+        return $exit_code
+      }
+
+      # SCP file transfer with validation
+      function scp_cmd() {
+        local source=$1
+        local destination=$2
+        
+        if [ -z "$source" ] || [ -z "$destination" ]; then
+          log "ERROR" "Source or destination not specified for SCP transfer"
+          return 1
+        fi
+        
+        if [ "$CI_TEST_MODE" == "true" ]; then
+          log "TEST" "Would transfer file from $source to $destination"
+          return 0
+        fi
+        
+        log "DEBUG" "Transferring file from $source to ${APP_USER}@${DEPLOY_HOST}:$destination"
+        
+        # Execute SCP transfer with error handling
+        scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 "$source" ${APP_USER}@${DEPLOY_HOST}:"$destination"
+        local exit_code=$?
+        
+        if [ $exit_code -ne 0 ]; then
+          log "ERROR" "SCP transfer failed with exit code $exit_code"
+          log "ERROR" "Source: $source, Destination: $destination"
+        fi
+        
+        return $exit_code
+      }
+
+      # Ensure directory exists on remote host
+      function ensure_directory() {
+        local directory=$1
+        
+        if [ -z "$directory" ]; then
+          log "ERROR" "No directory specified"
+          return 1
+        fi
+        
+        log "INFO" "Ensuring directory exists: $directory"
+        
+        ssh_cmd "mkdir -p $directory"
+        return $?
+      }
+
+      # Create deployment directory with timestamp and validation
+      function create_deploy_directory() {
+        log "INFO" "Creating deployment directory"
+        
+        # Ensure base directories exist
+        ensure_directory "$DEPLOY_DIR"
+        ensure_directory "$BACKUP_DIR"
+        ensure_directory "${BASE_PATH}/app"
+        ensure_directory "$TMP_DIR"
+        
+        # Generate timestamped directory name
+        DEPLOY_DIR_NAME="${DEPLOY_DIR}/${APP_NAME}-$(date +%Y%m%d%H%M%S)-${CI_JOB_ID}"
+        
+        ssh_cmd "mkdir -p $DEPLOY_DIR_NAME"
+        local exit_code=$?
+        
+        if [ $exit_code -eq 0 ]; then
+          log "INFO" "Created deployment directory: $DEPLOY_DIR_NAME"
+        else
+          log "ERROR" "Failed to create deployment directory"
+        fi
+        
+        echo $DEPLOY_DIR_NAME
+        return $exit_code
+      }
+
+      # Upload artifact to remote server with validation
+      function upload_artifact() {
+        local deploy_dir=$1
+        
+        if [ -z "$deploy_dir" ]; then
+          log "ERROR" "No deploy directory specified"
+          return 1
+        fi
+        
+        log "INFO" "Uploading artifact to $deploy_dir"
+        
+        # Use CI artifact path and pattern if defined
+        if [ -n "$CI_PROJECT_DIR" ] && [ -n "$ARTIFACT_PATH" ] && [ -n "$ARTIFACT_PATTERN" ]; then
+          log "INFO" "Using CI artifact: $ARTIFACT_PATH/$ARTIFACT_PATTERN"
+          
+          # Find the artifact file
+          local artifact_file=$(find "$CI_PROJECT_DIR/$ARTIFACT_PATH" -name "$ARTIFACT_PATTERN" | head -n 1)
+          
+          if [ -z "$artifact_file" ]; then
+            log "ERROR" "No artifact found matching pattern: $ARTIFACT_PATTERN in $ARTIFACT_PATH"
+            return 1
+          fi
+          
+          log "INFO" "Found artifact: $artifact_file"
+          
+          # Create temporary directory for artifact transfer
+          ensure_directory "$TMP_DIR"
+          
+          # Copy artifact to temporary location on remote server
+          scp_cmd "$artifact_file" "$TMP_DIR/$ARTIFACT_NAME"
+          local exit_code=$?
+          
+          if [ $exit_code -ne 0 ]; then
+            log "ERROR" "Failed to upload artifact"
+            return $exit_code
+          fi
+          
+          # Move artifact to deployment directory
+          ssh_cmd "mv $TMP_DIR/$ARTIFACT_NAME $deploy_dir/"
+          exit_code=$?
+          
+          if [ $exit_code -eq 0 ]; then
+            log "INFO" "Successfully uploaded artifact to $deploy_dir/$ARTIFACT_NAME"
+            return 0
+          else
+            log "ERROR" "Failed to move artifact to deployment directory"
+            return $exit_code
+          fi
+        fi
+      }
+
+      # Create and upload systemd service file with configurable settings
+      function setup_systemd_service() {
+        log "INFO" "Setting up systemd service file for ${APP_NAME}"
+        
+        # Parse environment variables from SERVICE_ENV_VARS
+        local env_vars=""
+        IFS=',' read -ra ENV_ARRAY <<< "$SERVICE_ENV_VARS"
+        for env_var in "${ENV_ARRAY[@]}"; do
+          env_vars+="    Environment=\"$env_var\"\n"
+        done
+        
+        # Create a generic systemd service file using the configured variables
+        echo -e "[Unit]\nDescription=${APP_NAME} Application\nAfter=network.target\n\n[Service]\nType=simple\nUser=${APP_USER}\nWorkingDirectory=${WORKING_DIRECTORY}\nExecStart=${START_COMMAND}\n${env_vars}SuccessExitStatus=143\nTimeoutStopSec=10\nRestart=on-failure\nRestartSec=5\n\n[Install]\nWantedBy=default.target" > ${APP_NAME}.service
+        
+        # Create config directory if it doesn't exist
+        ssh_cmd "mkdir -p $CONFIG_DIR"
+        
+        # Upload service file
+        scp_cmd "${APP_NAME}.service" "$CONFIG_DIR/"
+        local exit_code=$?
+        
+        if [ $exit_code -eq 0 ]; then
+          log "INFO" "Successfully uploaded systemd service file"
+          return 0
+        else
+          log "ERROR" "Failed to upload systemd service file"
+          return $exit_code
+        fi
+      }
+
+      # Stop the service with timeout
+      function stop_service() {
+        log "INFO" "Stopping ${APP_NAME} service"
+        
+        # Check if service is running before attempting to stop
+        if ssh_cmd "systemctl --user is-active ${APP_NAME}.service" > /dev/null 2>&1; then
+          ssh_cmd "systemctl --user stop ${APP_NAME}.service"
+          local exit_code=$?
+          
+          if [ $exit_code -eq 0 ]; then
+            log "INFO" "Service stopped successfully"
+          else
+            log "WARN" "Service failed to stop gracefully, continuing anyway"
+          fi
+        else
+          log "INFO" "Service is not running, no need to stop"
+        fi
+        
+        return 0  # Always continue deployment even if service stop fails
+      }
+
+      # Update symlink to new deployment with validation
+      function update_symlink() {
+        local target_dir=$1
+        
+        if [ -z "$target_dir" ]; then
+          log "ERROR" "No target directory specified for symlink"
+          return 1
+        fi
+        
+        log "INFO" "Updating symlink to point to $target_dir"
+        
+        # Verify target directory exists before creating symlink
+        if ! ssh_cmd "test -d $target_dir"; then
+          log "ERROR" "Target directory $target_dir does not exist"
+          return 1
+        fi
+        
+        ssh_cmd "ln -sfn $target_dir $CURRENT_LINK"
+        local exit_code=$?
+        
+        if [ $exit_code -eq 0 ]; then
+          log "INFO" "Successfully updated symlink"
+          return 0
+        else
+          log "ERROR" "Failed to update symlink"
+          return $exit_code
+        fi
+      }
+
+      # Enable linger for user service persistence
+      function enable_linger() {
+        log "INFO" "Enabling linger for ${APP_USER}"
+        
+        # Check if linger is already enabled
+        if ssh_root_cmd "loginctl show-user ${APP_USER} | grep -q 'Linger=yes'"; then
+          log "INFO" "Linger already enabled for ${APP_USER}"
+          return 0
+        fi
+        
+        ssh_root_cmd "loginctl enable-linger ${APP_USER}"
+        local exit_code=$?
+        
+        if [ $exit_code -eq 0 ]; then
+          log "INFO" "Successfully enabled linger"
+          return 0
+        else
+          log "ERROR" "Failed to enable linger"
+          return $exit_code
+        fi
+      }
+
+      # Start the service with proper validation
+      function start_service() {
+        log "INFO" "Starting ${APP_NAME} service"
+        
+        # Reload systemd daemon first
+        ssh_cmd "systemctl --user daemon-reload"
+        
+        # Enable and start service
+        ssh_cmd "systemctl --user enable ${APP_NAME}.service && systemctl --user start ${APP_NAME}.service"
+        local exit_code=$?
+        
+        if [ $exit_code -eq 0 ]; then
+          log "INFO" "Service started successfully"
+          return 0
+        else
+          log "ERROR" "Failed to start service"
+          return $exit_code
+        fi
+      }
+
+      # Perform health check with detailed logging
+      function perform_health_check() {
+        log "INFO" "Performing health check (${HEALTH_CHECK_RETRIES} attempts with ${HEALTH_CHECK_DELAY}s delay)"
+        
+        for i in $(seq 1 $HEALTH_CHECK_RETRIES); do
+          log "INFO" "Health check attempt $i of $HEALTH_CHECK_RETRIES..."
+          
+          if ssh_cmd "curl -s -f $HEALTH_CHECK_URL"; then
+            log "INFO" "Health check passed!"
+            
+            # Store current deployment ID as the last successful one
+            ssh_cmd "echo $CI_JOB_ID > ${BASE_PATH}/app/last_successful_deploy"
+            return 0
+          fi
+          
+          log "WARN" "Health check attempt $i failed, waiting ${HEALTH_CHECK_DELAY}s before next attempt"
+          sleep $HEALTH_CHECK_DELAY
+        done
+        
+        # If we get here, health check failed
+        log "ERROR" "Health check failed after $HEALTH_CHECK_RETRIES attempts"
+        return 1
+      }
+
+      # Get last successful deployment with validation
+      function get_last_successful_deploy() {
+        log "INFO" "Retrieving last successful deployment ID"
+        
+        # Check if the file exists
+        if ! ssh_cmd "test -f ${BASE_PATH}/app/last_successful_deploy"; then
+          log "WARN" "No record of last successful deployment"
+          return 0
+        fi
+        
+        LAST_DEPLOY_ID=$(ssh_cmd "cat ${BASE_PATH}/app/last_successful_deploy || echo ''")
+        
+        if [ -n "$LAST_DEPLOY_ID" ]; then
+          log "INFO" "Last successful deployment: $LAST_DEPLOY_ID"
+        else
+          log "WARN" "Last successful deployment file exists but is empty"
+        fi
+        
+        echo $LAST_DEPLOY_ID
+        return 0
+      }
+
+      # Get latest backup with validation
+      function get_latest_backup() {
+        log "INFO" "Finding latest backup"
+        
+        # Check if backup directory exists and has backups
+        if ! ssh_cmd "test -d $BACKUP_DIR && ls -1 $BACKUP_DIR | grep -q ."; then
+          log "WARN" "No backups found in $BACKUP_DIR"
+          return 0
+        fi
+        
+        LATEST_BACKUP=$(ssh_cmd "ls -1t $BACKUP_DIR | head -n 1")
+        
+        if [ -n "$LATEST_BACKUP" ]; then
+          log "INFO" "Latest backup: $LATEST_BACKUP"
+        else
+          log "WARN" "Failed to determine latest backup"
+        fi
+        
+        echo $LATEST_BACKUP
+        return 0
+      }
+
+      # Send notification with improved error handling
+      function send_notification() {
+        local status=$1
+        local message=$2
+        
+        if [ -z "$status" ] || [ -z "$message" ]; then
+          log "ERROR" "Notification status or message not provided"
+          return 1
+        fi
+        
+        log "INFO" "Sending $NOTIFICATION_METHOD notification: [$status] $message"
+        
+        if [ "$NOTIFICATION_METHOD" == "email" ]; then
+          if [ -z "$NOTIFICATION_EMAIL" ]; then
+            log "ERROR" "NOTIFICATION_EMAIL not set"
+            return 1
+          fi
+          
+          echo "$message" | mail -s "[$status] $APP_NAME Deployment to $CI_ENVIRONMENT_NAME" $NOTIFICATION_EMAIL
+          local exit_code=$?
+          
+          if [ $exit_code -ne 0 ]; then
+            log "WARN" "Failed to send email notification"
+          fi
+        elif [ "$NOTIFICATION_METHOD" == "notification_service" ]; then
+          if [ -z "$NOTIFICATION_SERVICE_URL" ]; then
+            log "WARN" "NOTIFICATION_SERVICE_URL not set. Skipping Notification Service notification."
+            return 0
+          fi
+          
+          # Set emoji based on status
+          if [ "$status" == "SUCCESS" ]; then
+            emoji=":white_check_mark:"
+          elif [ "$status" == "FAILURE" ]; then
+            emoji=":x:"
+          else
+            emoji=":information_source:"
+          fi
+          
+          # Send to Notification Service webhook
+          curl -s -X POST -H 'Content-type: application/json' --data "{\"text\":\"$emoji $message\"}" $NOTIFICATION_SERVICE_URL
+          if [ $? -ne 0 ]; then
+            log "WARN" "Failed to send Notification Service notification"
+          fi
+        else
+          log "WARN" "Notification method $NOTIFICATION_METHOD not configured. Defaulting to console output."
+          echo "$message"
+        fi
+        
+        return 0  # Non-critical function, always return success
+      }

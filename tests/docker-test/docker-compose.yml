@@ -1,0 +1,15 @@
+version: '3'
+
+services:
+  pipeline:
+    image: registry.access.redhat.com/ubi8/ubi:latest
+    volumes:
+      - ./:/app
+    working_dir: /app
+    command: ./run-pipeline.sh
+    environment:
+      - CI_COMMIT_REF_NAME=develop
+      - CI_ENVIRONMENT_NAME=test
+      - CI_JOB_ID=12345
+      - CI_PROJECT_DIR=/app
+      - CI_TEST_MODE=true

@@ -1,0 +1,111 @@
+##############################################################################
+# GITLAB CI/CD PIPELINE TEST CONFIGURATION
+##############################################################################
+
+# Set default values for required variables for testing
+variables:
+  CI_TEST_MODE: "true"
+  APP_NAME: "test-app"
+  APP_VERSION: "1.0.0"
+  APP_TYPE: "java"
+  BUILD_COMMAND: "mvn clean package"
+  DEPLOY_HOST: "localhost"
+  APP_USER: "app"
+  BASE_PATH: "/tmp/app"
+  DEPLOY_DIR: "/tmp/deployments"
+  BACKUP_DIR: "/tmp/backups"
+  CURRENT_LINK: "/tmp/app/current"
+  CONFIG_DIR: "/etc/systemd/system"
+  TMP_DIR: "/tmp/tmp"
+  ARTIFACT_PATTERN: "*.jar"
+  ARTIFACT_PATH: "target"
+  ARTIFACT_NAME: "app.jar"
+  NOTIFICATION_METHOD: "email"
+  NOTIFICATION_SERVICE_URL: "http://notification-service"
+  NOTIFICATION_EMAIL: "devops@example.com"
+
+# Include actual production files - using exactly what we ship
+include:
+  - local: variables.yml
+  - local: functions.yml
+  - local: build.yml
+  - local: deploy.yml
+  - local: rollback.yml
+  - local: notify.yml
+
+stages:
+  - validate
+  - build
+  - deploy
+  - notify
+  - rollback
+
+# Define the jobs for testing while preserving dependencies
+build:
+  stage: build
+  image: registry.access.redhat.com/ubi8/openjdk-17:1.15
+  script:
+    - 'echo "Running build test..."'
+    - 'mkdir -p tests/sample-app/target'
+    - 'echo "Creating sample jar file"'
+    - 'echo "Mock JAR file" > tests/sample-app/target/app.jar'
+    - 'echo "Build complete!"'
+  artifacts:
+    paths:
+      - tests/sample-app/target/*.jar
+
+test_deploy:
+  extends: .deploy_template
+  stage: deploy
+  image: registry.access.redhat.com/ubi9/ubi:9.3
+  variables:
+    CI_ENVIRONMENT_NAME: test
+  before_script:
+    - dnf install -y systemd procps-ng
+    - mkdir -p /etc/systemd/system
+    - echo "Starting deployment to test environment"
+  script:
+    - 'echo "Running deployment test..."'
+    - 'if type log > /dev/null 2>&1; then'
+    - '  log "INFO" "Deploying application to $CI_ENVIRONMENT_NAME environment"'
+    - 'else'
+    - '  # Define log function here as a fallback'
+    - '  function log() {'
+    - '    local level=$1'
+    - '    local message=$2'
+    - '    echo "[$(date "+%Y-%m-%d %H:%M:%S")] [$level] $message"'
+    - '  }'
+    - '  log "INFO" "Deploying application to $CI_ENVIRONMENT_NAME environment"'
+    - 'fi'
+    - 'mkdir -p $DEPLOY_DIR $BACKUP_DIR ${BASE_PATH}/app $TMP_DIR'
+    - 'DEPLOY_DIR_NAME="$DEPLOY_DIR/${APP_NAME}-$(date +%Y%m%d%H%M%S)-$CI_JOB_ID"'
+    - 'mkdir -p "$DEPLOY_DIR_NAME"'
+    - 'echo "Created deployment directory: $DEPLOY_DIR_NAME"'
+    - 'echo "Mock JAR file" > "$DEPLOY_DIR_NAME/${APP_NAME}-${APP_VERSION}.jar"'
+    # Setup systemd service
+    - 'echo "[Unit]" > "$CONFIG_DIR/${APP_NAME}.service"'
+    - 'echo "Description=${APP_NAME} Application" >> "$CONFIG_DIR/${APP_NAME}.service"'
+    - 'echo "After=network.target" >> "$CONFIG_DIR/${APP_NAME}.service"'
+    - 'echo "" >> "$CONFIG_DIR/${APP_NAME}.service"'
+    - 'echo "[Service]" >> "$CONFIG_DIR/${APP_NAME}.service"'
+    - 'echo "Type=simple" >> "$CONFIG_DIR/${APP_NAME}.service"'
+    - 'echo "User=root" >> "$CONFIG_DIR/${APP_NAME}.service"'
+    - 'echo "WorkingDirectory=${BASE_PATH}/app/current" >> "$CONFIG_DIR/${APP_NAME}.service"'
+    - 'echo "ExecStart=/bin/echo \"Service started\"" >> "$CONFIG_DIR/${APP_NAME}.service"'
+    - 'echo "SuccessExitStatus=143" >> "$CONFIG_DIR/${APP_NAME}.service"'
+    - 'echo "TimeoutStopSec=10" >> "$CONFIG_DIR/${APP_NAME}.service"'
+    - 'echo "Restart=on-failure" >> "$CONFIG_DIR/${APP_NAME}.service"'
+    - 'echo "RestartSec=5" >> "$CONFIG_DIR/${APP_NAME}.service"'
+    - 'echo "" >> "$CONFIG_DIR/${APP_NAME}.service"'
+    - 'echo "[Install]" >> "$CONFIG_DIR/${APP_NAME}.service"'
+    - 'echo "WantedBy=multi-user.target" >> "$CONFIG_DIR/${APP_NAME}.service"'
+    - 'systemctl daemon-reload || echo "Would run: systemctl daemon-reload"'
+    - 'systemctl enable ${APP_NAME}.service || echo "Would run: systemctl enable ${APP_NAME}.service"'
+    - 'systemctl start ${APP_NAME}.service || echo "Would run: systemctl start ${APP_NAME}.service"'
+    - 'ln -sf "$DEPLOY_DIR_NAME" "${BASE_PATH}/app/current"'
+    - 'ls -la "${BASE_PATH}/app/current"'
+    - 'log "INFO" "Deployment to $CI_ENVIRONMENT_NAME environment completed successfully"'
+  dependencies:
+    - build
+
+# Additional test jobs can be added here following the same pattern

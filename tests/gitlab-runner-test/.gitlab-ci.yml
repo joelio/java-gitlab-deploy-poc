@@ -1,0 +1,55 @@
+# Simple GitLab CI configuration for testing
+
+stages:
+  - build
+  - test
+  - deploy
+
+variables:
+  # Enable debug mode to see all GitLab CI variables
+  CI_DEBUG_TRACE: "true"
+
+before_script:
+  - echo "This is a real GitLab CI job running with gitlab-runner"
+  - echo "GITLAB_CI = $GITLAB_CI"
+  - echo "CI = $CI"
+  - echo "CI_JOB_ID = $CI_JOB_ID"
+  - echo "CI_JOB_NAME = $CI_JOB_NAME"
+  - echo "CI_PIPELINE_ID = $CI_PIPELINE_ID"
+  - echo "CI_RUNNER_ID = $CI_RUNNER_ID"
+  - echo "CI_SERVER = $CI_SERVER"
+  - echo "CI_SERVER_NAME = $CI_SERVER_NAME"
+  - echo "CI_SERVER_VERSION = $CI_SERVER_VERSION"
+  - pwd
+
+build_job:
+  stage: build
+  script:
+    - echo "Running build job"
+    - mkdir -p build
+    - echo "This is a build artifact" > build/artifact.txt
+    - ls -la build/
+  artifacts:
+    paths:
+      - build/
+
+test_job:
+  stage: test
+  script:
+    - echo "Running test job"
+    - echo "Testing artifact from build job:"
+    - cat build/artifact.txt
+    - echo "This proves artifacts are passed between jobs"
+  dependencies:
+    - build_job
+
+deploy_job:
+  stage: deploy
+  script:
+    - echo "Running deploy job"
+    - mkdir -p deploy
+    - cp build/artifact.txt deploy/
+    - echo "Deployed to: $(pwd)/deploy/"
+    - ls -la deploy/
+  dependencies:
+    - build_job

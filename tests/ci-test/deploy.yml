@@ -1,0 +1,95 @@
+# Modified deploy.yml for testing
+# This file is identical to the original but sources functions.yml directly
+
+.deploy_template:
+  stage: deploy
+  variables:
+    # Set a default timeout for deployment operations
+    DEPLOYMENT_TIMEOUT: 300  # 5 minutes in seconds
+  script:
+    - source ci/functions.yml
+    - |
+      # Check for auto-promotion prevention
+      if [[ "$AUTO_PROMOTION" == "true" && "$CI_PIPELINE_SOURCE" != "web" && "$CI_PIPELINE_SOURCE" != "api" ]]; then
+        log "ERROR" "Automatic promotion to $CI_ENVIRONMENT_NAME environment is not allowed."
+        log "ERROR" "Deployments must be triggered manually via GitLab UI or API."
+        exit 1
+      fi
+      
+      # Set deployment variables
+      DEPLOY_DIR_NAME="${DEPLOY_DIR}/${APP_NAME}-$(date +%Y%m%d%H%M%S)-${CI_PIPELINE_ID}"
+      
+      # Create deployment directory structure
+      log "INFO" "Creating deployment directory: $DEPLOY_DIR_NAME"
+      ssh_cmd "mkdir -p $DEPLOY_DIR_NAME $CONFIG_DIR $TMP_DIR"
+      
+      # Backup current deployment if it exists
+      backup_current_deployment
+      
+      # Upload application files
+      upload_application "$DEPLOY_DIR_NAME"
+      
+      # Set up systemd service
+      setup_systemd_service
+      
+      # Start the service
+      start_service
+      
+      # Create symlink to current deployment
+      log "INFO" "Creating symlink to current deployment"
+      ssh_cmd "ln -sf $DEPLOY_DIR_NAME $CURRENT_LINK"
+      
+      # Verify deployment
+      verify_deployment
+      
+      log "INFO" "Deployment to $CI_ENVIRONMENT_NAME environment completed successfully"
+
+.cleanup_template:
+  stage: deploy
+  script:
+    - source ci/functions.yml
+    - |
+      # Set variables
+      MAX_DEPLOYMENTS=${MAX_DEPLOYMENTS:-5}
+      
+      log "INFO" "Starting cleanup of old deployments"
+      log "INFO" "Keeping maximum $MAX_DEPLOYMENTS deployments"
+      
+      # List all deployments
+      DEPLOYMENTS=$(ssh_cmd "find $DEPLOY_DIR -maxdepth 1 -type d -name \"${APP_NAME}-*\" | sort -r")
+      
+      # Count deployments
+      DEPLOYMENT_COUNT=$(echo "$DEPLOYMENTS" | wc -l)
+      DEPLOYMENT_COUNT=$((DEPLOYMENT_COUNT))
+      
+      if [ "$DEPLOYMENT_COUNT" -le "$MAX_DEPLOYMENTS" ]; then
+        log "INFO" "Only $DEPLOYMENT_COUNT deployments exist, no cleanup needed"
+        exit 0
+      fi
+      
+      # Get current deployment
+      CURRENT_DEPLOYMENT=$(ssh_cmd "readlink -f $CURRENT_LINK")
+      
+      # Delete old deployments
+      TO_DELETE=$((DEPLOYMENT_COUNT - MAX_DEPLOYMENTS))
+      log "INFO" "Deleting $TO_DELETE old deployments"
+      
+      COUNTER=0
+      for DEPLOYMENT in $DEPLOYMENTS; do
+        # Skip if this is the current deployment
+        if [ "$DEPLOYMENT" = "$CURRENT_DEPLOYMENT" ]; then
+          continue
+        fi
+        
+        # Skip if this is one of the recent deployments we want to keep
+        COUNTER=$((COUNTER + 1))
+        if [ "$COUNTER" -le "$MAX_DEPLOYMENTS" ]; then
+          continue
+        fi
+        
+        # Delete the deployment
+        log "INFO" "Deleting old deployment: $DEPLOYMENT"
+        ssh_cmd "rm -rf $DEPLOYMENT"
+      done
+      
+      log "INFO" "Cleanup completed successfully"

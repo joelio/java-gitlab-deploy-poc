@@ -37,6 +37,15 @@ skinparam note {
 ' Simplified layout for narrower wiki page
 rectangle "Deployment Failure" as failure #ffcdd2
 
+' Comprehensive Testing - New section
+rectangle "Comprehensive Testing" as testing #e1f5fe {
+  rectangle "1. Basic Pipeline Testing" as basic_testing #f8f9fa
+  rectangle "2. Systemd Service Testing" as systemd_testing #f8f9fa
+  rectangle "3. Rollback Functionality" as rollback_testing #f8f9fa
+  rectangle "4. Multi-Server Simulation" as multi_server_testing #f8f9fa
+  rectangle "5. Edge Case Handling" as edge_case_testing #f8f9fa
+}
+
 ' Automatic Rollback - Vertical layout
 rectangle "Automatic Rollback" as auto #e8f5e9 {
   rectangle "1. Find Last Successful Deploy" as last_deploy #f8f9fa
@@ -58,6 +67,10 @@ rectangle "Manual Rollback" as manual #e3f2fd {
 failure -down-> auto : Trigger
 failure -right-> manual : User Initiated
 
+testing -up-> failure : Validates
+testing -up-> auto : Verifies
+testing -up-> manual : Confirms
+
 note bottom of auto
   Triggered automatically when 
   deployment health check fails
@@ -66,6 +79,12 @@ end note
 note bottom of manual
   Triggered manually by user
   from GitLab pipeline interface
+end note
+
+note bottom of testing
+  Comprehensive test suite ensures
+  rollback functionality works correctly
+  with the exact same files we ship to users
 end note
 
 @enduml

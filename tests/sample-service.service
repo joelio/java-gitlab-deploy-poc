@@ -1,0 +1,16 @@
+[Unit]
+Description=Sample Java Application Service
+After=network.target
+
+[Service]
+Type=simple
+User=%i
+WorkingDirectory=%h/app/current
+ExecStart=/bin/sh -c 'java -jar %h/app/current/test-app.jar'
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

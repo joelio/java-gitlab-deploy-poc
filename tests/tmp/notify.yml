@@ -1,0 +1,124 @@
+##############################################################################
+# NOTIFICATION JOB TEMPLATES
+#
+# This file defines how notifications are sent after deployment or rollback operations.
+# It supports multiple notification methods (email, Notification Service) with detailed information
+# about the deployment status, commit details, and error context.
+#
+# NOTIFICATION TYPES:
+# 1. SUCCESS: Sent when a deployment completes successfully
+# 2. FAILURE: Sent when a deployment fails, includes error context
+# 3. ROLLBACK: Sent when a rollback operation completes
+#
+# NOTIFICATION METHODS:
+# - EMAIL: Sends notifications via email (default)
+#   Requires NOTIFICATION_EMAIL to be set in variables.yml
+#
+# - NOTIFICATION_SERVICE: Sends notifications to a Notification Service
+#   Requires NOTIFICATION_SERVICE_URL to be set in GitLab CI/CD variables
+#   Used by default for production environments
+#
+# NOTIFICATION CONTENT:
+# All notifications include:
+# - Deployment status (success/failure/rollback)
+# - Application name and environment
+# - Build ID and branch name
+# - Commit hash, author, and message
+# - Error logs link (for failures)
+#
+# TESTING:
+# - Set CI_TEST_MODE to "true" to simulate notifications without sending them
+##############################################################################
+
+# Common notification functions
+.functions:
+  variables:
+    # Default notification settings
+    NOTIFICATION_TIMEOUT: 60  # 1 minute in seconds
+  before_script:
+    - |
+      echo "Preparing notification for $CI_ENVIRONMENT_NAME environment"
+      
+      # Format commit message for notifications
+      COMMIT_SHORT_SHA=${CI_COMMIT_SHA:0:8}
+      COMMIT_AUTHOR=$(git log -1 --pretty=format:'%an')
+      COMMIT_MESSAGE=$(git log -1 --pretty=format:'%s')
+      
+      # Create a detailed notification message
+      BUILD_INFO="Build: $CI_JOB_ID | Branch: $CI_COMMIT_REF_NAME | Commit: $COMMIT_SHORT_SHA"
+      AUTHOR_INFO="Author: $COMMIT_AUTHOR | Message: $COMMIT_MESSAGE"
+
+# Success notification template with enhanced message
+.notify_success_template:
+  extends:
+    - .notify_common
+    - .functions
+  stage: notify
+  script:
+    - |
+      # Create a detailed success message
+      NOTIFICATION_MESSAGE="Deployment of $APP_NAME to $CI_ENVIRONMENT_NAME was successful.\n$BUILD_INFO\n$AUTHOR_INFO"
+      
+      # Send notification with enhanced message
+      if [ "$CI_TEST_MODE" == "true" ]; then
+        log "TEST" "Would send SUCCESS notification: $NOTIFICATION_MESSAGE"
+      else
+        log "INFO" "Sending success notification"
+        send_notification "SUCCESS" "$NOTIFICATION_MESSAGE"
+      fi
+  when: on_success
+  needs:
+    - deploy
+
+# Failure notification template with enhanced message and error details
+.notify_failure_template:
+  extends:
+    - .notify_common
+    - .functions
+  stage: notify
+  script:
+    - |
+      # Get deployment logs for error context
+      ERROR_LOGS=""
+      if [ -n "$CI_JOB_ID" ]; then
+        # Try to extract error logs from the failed job
+        if [ "$CI_TEST_MODE" != "true" ]; then
+          ERROR_LOGS="See job logs: ${CI_PROJECT_URL}/-/jobs/${CI_JOB_ID}"
+        fi
+      fi
+      
+      # Create a detailed failure message
+      NOTIFICATION_MESSAGE="Deployment of $APP_NAME to $CI_ENVIRONMENT_NAME failed.\n$BUILD_INFO\n$AUTHOR_INFO\n$ERROR_LOGS"
+      
+      # Send notification with enhanced message
+      if [ "$CI_TEST_MODE" == "true" ]; then
+        log "TEST" "Would send FAILURE notification: $NOTIFICATION_MESSAGE"
+      else
+        log "INFO" "Sending failure notification"
+        send_notification "FAILURE" "$NOTIFICATION_MESSAGE"
+      fi
+  when: on_failure
+  needs:
+    - deploy
+
+# Rollback notification template
+.notify_rollback_template:
+  extends:
+    - .notify_common
+    - .functions
+  stage: notify
+  script:
+    - |
+      # Create a detailed rollback message
+      NOTIFICATION_MESSAGE="Rollback of $APP_NAME in $CI_ENVIRONMENT_NAME was performed.\n$BUILD_INFO\n$AUTHOR_INFO"
+      
+      # Send notification with enhanced message
+      if [ "$CI_TEST_MODE" == "true" ]; then
+        log "TEST" "Would send ROLLBACK notification: $NOTIFICATION_MESSAGE"
+      else
+        log "INFO" "Sending rollback notification"
+        send_notification "ROLLBACK" "$NOTIFICATION_MESSAGE"
+      fi
+  when: on_success
+  needs:
+    - rollback

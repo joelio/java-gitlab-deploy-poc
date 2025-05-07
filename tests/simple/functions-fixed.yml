@@ -1,0 +1,378 @@
+.functions:
+  script:
+    - |
+      # Logging function for standardized output
+      function log() {
+        local level=$1
+        local message=$2
+        echo "[${level}] $(date +'%Y-%m-%d %H:%M:%S') - $message"
+      }
+      
+      # Function to check for required variables
+      function check_required_vars() {
+        local missing_vars=0
+        
+        for var in "$@"; do
+          if [ -z "${!var}" ]; then
+            log "ERROR" "Required variable $var is not set"
+            missing_vars=$((missing_vars + 1))
+          fi
+        done
+        
+        if [ $missing_vars -gt 0 ]; then
+          log "ERROR" "$missing_vars required variables are missing"
+          return 1
+        fi
+        
+        return 0
+      }
+      
+      # Multi-server deployment helper function
+      function deploy_to_servers() {
+        local deploy_function=$1
+        shift
+        
+        if [ -z "$deploy_function" ]; then
+          log "ERROR" "No deployment function specified"
+          return 1
+        fi
+        
+        # Check if we're in multi-server mode
+        if [ -n "$DEPLOY_HOSTS" ]; then
+          # Split the comma-separated list into an array
+          IFS=',' read -ra SERVER_ARRAY <<< "$DEPLOY_HOSTS"
+          
+          if [ ${#SERVER_ARRAY[@]} -eq 0 ]; then
+            log "ERROR" "No servers defined in DEPLOY_HOSTS array"
+            return 1
+          fi
+          
+          log "INFO" "Will deploy to ${#SERVER_ARRAY[@]} servers sequentially"
+          
+          # Deploy to each server sequentially
+          for server in "${SERVER_ARRAY[@]}"; do
+            # Trim whitespace
+            server=$(echo "$server" | xargs)
+            
+            log "INFO" "Deploying to server: $server"
+            local original_host=$DEPLOY_HOST
+            DEPLOY_HOST=$server
+            
+            # Call the specified deployment function with all arguments
+            "$deploy_function" "$@"
+            local exit_code=$?
+            
+            # Restore original host
+            DEPLOY_HOST=$original_host
+            
+            if [ $exit_code -ne 0 ]; then
+              log "ERROR" "Deployment failed on server: $server"
+              return $exit_code
+            fi
+            
+            log "INFO" "Successfully deployed to server: $server"
+          done
+          
+          log "INFO" "Multi-server deployment completed successfully"
+          return 0
+        else
+          # Single server mode - just call the function directly
+          log "INFO" "Single server deployment mode"
+          "$deploy_function" "$@"
+          return $?
+        fi
+      }
+      
+      # Establish SSH connection with full validation
+      function ssh_cmd() {
+        local command=$1
+        
+        if [ -z "$command" ]; then
+          log "ERROR" "No command specified for SSH execution"
+          return 1
+        fi
+        
+        if [ "$CI_TEST_MODE" == "true" ]; then
+          log "TEST" "Would execute SSH command: $command"
+          return 0
+        fi
+        
+        log "DEBUG" "Executing SSH command: $command"
+        
+        # Execute command via SSH with error handling
+        ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ${APP_USER}@${DEPLOY_HOST} "$command"
+        local exit_code=$?
+        
+        if [ $exit_code -ne 0 ]; then
+          log "ERROR" "SSH command failed with exit code $exit_code"
+          log "ERROR" "Command was: $command"
+        fi
+        
+        return $exit_code
+      }
+      
+      # Create deployment directory
+      function create_deployment_dir() {
+        log "INFO" "Creating deployment directory"
+        if [ "$CI_TEST_MODE" == "true" ]; then
+          log "TEST" "Would create directory: $DEPLOY_DIR/$APP_NAME/$APP_VERSION"
+          mkdir -p "$DEPLOY_DIR/$APP_NAME/$APP_VERSION" 2>/dev/null || true
+          return 0
+        fi
+        
+        ssh_cmd "mkdir -p $DEPLOY_DIR/$APP_NAME/$APP_VERSION"
+        return $?
+      }
+      
+      # Create symlink to current deployment
+      function create_symlink() {
+        log "INFO" "Creating symlink to current deployment"
+        if [ "$CI_TEST_MODE" == "true" ]; then
+          log "TEST" "Would create symlink from $DEPLOY_DIR/$APP_NAME/$APP_VERSION to $BASE_PATH/$APP_NAME/current"
+          mkdir -p "$BASE_PATH/$APP_NAME" 2>/dev/null || true
+          ln -sfn "$DEPLOY_DIR/$APP_NAME/$APP_VERSION" "$BASE_PATH/$APP_NAME/current" 2>/dev/null || true
+          return 0
+        fi
+        
+        ssh_cmd "mkdir -p $BASE_PATH/$APP_NAME && ln -sfn $DEPLOY_DIR/$APP_NAME/$APP_VERSION $BASE_PATH/$APP_NAME/current"
+        return $?
+      }
+      
+      # Deploy application
+      function deploy_application() {
+        log "INFO" "Deploying application to $DEPLOY_HOST"
+        
+        # Create deployment directory
+        create_deployment_dir
+        if [ $? -ne 0 ]; then
+          log "ERROR" "Failed to create deployment directory"
+          return 1
+        fi
+        
+        # Upload artifact
+        if [ "$CI_TEST_MODE" == "true" ]; then
+          log "TEST" "Would upload artifact to $DEPLOY_DIR/$APP_NAME/$APP_VERSION/$ARTIFACT_NAME"
+          mkdir -p "$DEPLOY_DIR/$APP_NAME/$APP_VERSION" 2>/dev/null || true
+          return 0
+        fi
+        
+        # Find and upload the artifact
+        log "INFO" "Uploading artifact: $ARTIFACT_PATH/$ARTIFACT_PATTERN"
+        local artifact=$(find "$CI_PROJECT_DIR/$ARTIFACT_PATH" -name "$ARTIFACT_PATTERN" | head -n 1)
+        
+        if [ -z "$artifact" ]; then
+          log "ERROR" "No artifact found matching $ARTIFACT_PATTERN in $ARTIFACT_PATH"
+          return 1
+        fi
+        
+        log "INFO" "Found artifact: $artifact"
+        
+        # Upload artifact using SCP
+        scp -o StrictHostKeyChecking=no "$artifact" ${APP_USER}@${DEPLOY_HOST}:$DEPLOY_DIR/$APP_NAME/$APP_VERSION/$ARTIFACT_NAME
+        if [ $? -ne 0 ]; then
+          log "ERROR" "Failed to upload artifact"
+          return 1
+        fi
+        
+        # Create symlink to current deployment
+        create_symlink
+        if [ $? -ne 0 ]; then
+          log "ERROR" "Failed to create symlink"
+          return 1
+        fi
+        
+        log "INFO" "Application deployed successfully"
+        return 0
+      }
+      
+      # Create and enable systemd service
+      function setup_systemd_service() {
+        log "INFO" "Setting up systemd service for $APP_NAME"
+        
+        if [ "$CI_TEST_MODE" == "true" ]; then
+          log "TEST" "Would create and enable systemd service: $APP_NAME.service"
+          return 0
+        fi
+        
+        # Create service file
+        cat > /tmp/$APP_NAME.service << EOF
+      [Unit]
+      Description=$APP_NAME Service
+      After=network.target
+      
+      [Service]
+      Type=simple
+      User=$APP_USER
+      WorkingDirectory=$BASE_PATH/$APP_NAME/current
+      ExecStart=java -jar $BASE_PATH/$APP_NAME/current/$ARTIFACT_NAME
+      Restart=on-failure
+      RestartSec=10
+      
+      [Install]
+      WantedBy=multi-user.target
+      EOF
+        
+        # Upload service file
+        scp -o StrictHostKeyChecking=no /tmp/$APP_NAME.service root@${DEPLOY_HOST}:$CONFIG_DIR/$APP_NAME.service
+        if [ $? -ne 0 ]; then
+          log "ERROR" "Failed to upload systemd service file"
+          return 1
+        fi
+        
+        # Reload systemd daemon
+        ssh -o StrictHostKeyChecking=no root@${DEPLOY_HOST} "systemctl daemon-reload"
+        if [ $? -ne 0 ]; then
+          log "ERROR" "Failed to reload systemd daemon"
+          return 1
+        fi
+        
+        # Enable service
+        ssh -o StrictHostKeyChecking=no root@${DEPLOY_HOST} "systemctl enable $APP_NAME.service"
+        if [ $? -ne 0 ]; then
+          log "ERROR" "Failed to enable systemd service"
+          return 1
+        fi
+        
+        log "INFO" "Systemd service setup complete"
+        return 0
+      }
+      
+      # Start service
+      function start_service() {
+        log "INFO" "Starting service: $APP_NAME"
+        
+        if [ "$CI_TEST_MODE" == "true" ]; then
+          log "TEST" "Would start service: $APP_NAME"
+          return 0
+        fi
+        
+        ssh -o StrictHostKeyChecking=no root@${DEPLOY_HOST} "systemctl start $APP_NAME.service"
+        if [ $? -ne 0 ]; then
+          log "ERROR" "Failed to start service"
+          return 1
+        fi
+        
+        log "INFO" "Service started successfully"
+        return 0
+      }
+      
+      # Check service status
+      function check_service() {
+        log "INFO" "Checking service status: $APP_NAME"
+        
+        if [ "$CI_TEST_MODE" == "true" ]; then
+          log "TEST" "Would check service status: $APP_NAME"
+          return 0
+        fi
+        
+        ssh -o StrictHostKeyChecking=no root@${DEPLOY_HOST} "systemctl status $APP_NAME.service"
+        local exit_code=$?
+        
+        if [ $exit_code -ne 0 ]; then
+          log "ERROR" "Service status check failed with exit code $exit_code"
+          return $exit_code
+        fi
+        
+        log "INFO" "Service is running correctly"
+        return 0
+      }
+      
+      # Stop service
+      function stop_service() {
+        log "INFO" "Stopping service: $APP_NAME"
+        
+        if [ "$CI_TEST_MODE" == "true" ]; then
+          log "TEST" "Would stop service: $APP_NAME"
+          return 0
+        fi
+        
+        ssh -o StrictHostKeyChecking=no root@${DEPLOY_HOST} "systemctl stop $APP_NAME.service"
+        if [ $? -ne 0 ]; then
+          log "ERROR" "Failed to stop service"
+          return 1
+        fi
+        
+        log "INFO" "Service stopped successfully"
+        return 0
+      }
+      
+      # Find available rollback versions
+      function list_rollback_versions() {
+        log "INFO" "Listing available rollback versions"
+        
+        if [ "$CI_TEST_MODE" == "true" ]; then
+          log "TEST" "Would list available rollback versions in $DEPLOY_DIR/$APP_NAME"
+          return 0
+        fi
+        
+        # List directories excluding 'current'
+        ssh_cmd "find $DEPLOY_DIR/$APP_NAME -maxdepth 1 -type d -not -name 'current' | sort -r"
+        return $?
+      }
+      
+      # Rollback to a specific version
+      function rollback_to_version() {
+        local rollback_version=$1
+        
+        if [ -z "$rollback_version" ]; then
+          log "ERROR" "No rollback version specified"
+          return 1
+        fi
+        
+        log "INFO" "Rolling back to version: $rollback_version"
+        
+        if [ "$CI_TEST_MODE" == "true" ]; then
+          log "TEST" "Would roll back to version: $rollback_version"
+          log "TEST" "1. Stop service"
+          log "TEST" "2. Update symlink to $DEPLOY_DIR/$APP_NAME/$rollback_version"
+          log "TEST" "3. Start service"
+          return 0
+        fi
+        
+        # Stop the service
+        stop_service
+        if [ $? -ne 0 ]; then
+          log "ERROR" "Failed to stop service for rollback"
+          return 1
+        fi
+        
+        # Update symlink
+        ssh_cmd "ln -sfn $DEPLOY_DIR/$APP_NAME/$rollback_version $BASE_PATH/$APP_NAME/current"
+        if [ $? -ne 0 ]; then
+          log "ERROR" "Failed to update symlink for rollback"
+          return 1
+        fi
+        
+        # Start the service
+        start_service
+        if [ $? -ne 0 ]; then
+          log "ERROR" "Failed to start service after rollback"
+          return 1
+        fi
+        
+        log "INFO" "Rollback to version $rollback_version completed successfully"
+        return 0
+      }
+      
+      # Automatic rollback to previous version
+      function rollback_to_previous() {
+        log "INFO" "Rolling back to previous version"
+        
+        if [ "$CI_TEST_MODE" == "true" ]; then
+          log "TEST" "Would automatically roll back to the previous version"
+          return 0
+        fi
+        
+        # Find previous version (excluding current version)
+        local current_version=$(ssh_cmd "readlink $BASE_PATH/$APP_NAME/current" | xargs basename)
+        local previous_version=$(ssh_cmd "find $DEPLOY_DIR/$APP_NAME -maxdepth 1 -type d -not -name 'current' -not -name \"$current_version\" | sort -r | head -n 1" | xargs basename)
+        
+        if [ -z "$previous_version" ]; then
+          log "ERROR" "No previous version found to roll back to"
+          return 1
+        fi
+        
+        log "INFO" "Found previous version: $previous_version"
+        rollback_to_version "$previous_version"
+        return $?
+      }

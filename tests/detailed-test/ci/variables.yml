@@ -1,0 +1,223 @@
+##############################################################################
+# GLOBAL VARIABLES CONFIGURATION
+#
+# This file defines all variables used throughout the CI/CD pipeline.
+# Variables can be overridden in environment-specific sections below or
+# directly in GitLab CI/CD variables settings.
+#
+# HOW TO CUSTOMIZE:
+# 1. Update the variables below to match your project requirements
+# 2. For environment-specific settings, modify the environment sections at the bottom
+# 3. For testing without making actual changes, set CI_TEST_MODE to "true"
+##############################################################################
+
+variables:
+  ###########################
+  # APPLICATION SETTINGS
+  ###########################
+  # Application name (used for deployment directories and service names)
+  APP_NAME: "application"
+  
+  # Application version (can be overridden in CI/CD variables)
+  APP_VERSION: "1.0.0"
+  
+  ###########################
+  # BUILD CONFIGURATION
+  ###########################
+  # Build command to execute (customize for your application type)
+  # Examples:
+  # - Java/Maven: "mvn clean package -DskipTests"
+  # - .NET: "dotnet publish -c Release"
+  # - Node.js: "npm ci && npm run build"
+  BUILD_COMMAND: "mvn clean package -DskipTests"
+  
+  # Path to the runtime executable (e.g., java, dotnet, node)
+  RUNTIME_PATH: "/usr/lib/jvm/java-17-openjdk-amd64/bin/java"
+  
+  # Runtime options to pass to the executable
+  RUNTIME_OPTS: "-Xmx512m -Xms256m"
+  
+  ###########################
+  # ARTIFACT SETTINGS
+  ###########################
+  # Path pattern to locate artifacts after build
+  ARTIFACT_PATTERN: "target/*.jar"
+  
+  # Path to the specific artifact to deploy
+  ARTIFACT_PATH: "target/${APP_NAME}-${CI_JOB_ID}.jar"
+  
+  # Name of the artifact when deployed
+  ARTIFACT_NAME: "${APP_NAME}-${CI_JOB_ID}.jar"
+  
+  ###########################
+  # SERVICE CONFIGURATION
+  ###########################
+  # Command to start the application (will be used in systemd service)
+  # Examples:
+  # - Java: "${RUNTIME_PATH} ${RUNTIME_OPTS} -jar ${CURRENT_LINK}/${ARTIFACT_NAME}"
+  # - .NET: "${RUNTIME_PATH} ${CURRENT_LINK}/${APP_NAME}.dll ${RUNTIME_OPTS}"
+  # - Node.js: "${RUNTIME_PATH} ${CURRENT_LINK}/index.js"
+  START_COMMAND: "${RUNTIME_PATH} ${RUNTIME_OPTS} -jar ${CURRENT_LINK}/${ARTIFACT_NAME}"
+  
+  # Working directory for the application
+  WORKING_DIRECTORY: "${BASE_PATH}/app"
+  
+  # Additional environment variables for the service (comma-separated KEY=VALUE pairs)
+  SERVICE_ENV_VARS: "BUILD_ID=${CI_JOB_ID},ENV=${CI_ENVIRONMENT_NAME}"
+  
+  ###########################
+  # DEPLOYMENT SERVER SETTINGS
+  ###########################
+  # Default deployment host (IMPORTANT: override this in environment sections)
+  # Defaults to localhost for safety to prevent accidental deployments
+  DEPLOY_HOST: "localhost"
+  
+  # Set to "true" to enable multi-server deployment mode
+  # When enabled, DEPLOY_HOSTS array will be used instead of DEPLOY_HOST
+  MULTI_SERVER_DEPLOYMENT: "false"
+  
+  # Default empty array of deployment hosts for multi-server deployments
+  # This should be overridden in environment-specific sections
+  DEPLOY_HOSTS: "[]"  # JSON array format
+  
+  # User account on deployment servers (can be overridden per environment)
+  # This user will own the deployed application and run the service
+  APP_USER: "appuser"
+  
+  ###########################
+  # PATH SETTINGS
+  ###########################
+  # Base path for all application files (adjusts based on APP_USER)
+  BASE_PATH: "/home/${APP_USER}"
+  
+  # Directory for all deployment versions
+  DEPLOY_DIR: "${BASE_PATH}/deployments"
+  
+  # Symlink pointing to the current active deployment
+  CURRENT_LINK: "${BASE_PATH}/app/current"
+  
+  # Directory for backup versions (used for rollbacks)
+  BACKUP_DIR: "${BASE_PATH}/backups"
+  
+  # Directory for systemd user service configuration
+  CONFIG_DIR: "${BASE_PATH}/.config/systemd/user"
+  
+  # Temporary directory for file transfers
+  TMP_DIR: "${BASE_PATH}/tmp"
+  
+  ###########################
+  # DEPLOYMENT SETTINGS
+  ###########################
+  # Number of backup versions to keep (older ones will be deleted)
+  MAX_BACKUPS: 5
+  
+  # URL to check if application is healthy after deployment
+  # Should return HTTP 200 when application is running correctly
+  HEALTH_CHECK_URL: "http://localhost:8080/healthcheck"
+  
+  # Number of health check attempts before failing deployment
+  HEALTH_CHECK_RETRIES: 10
+  
+  # Delay in seconds between health check attempts
+  HEALTH_CHECK_DELAY: 5
+  
+  # Maximum time in seconds for deployment before timing out
+  DEPLOYMENT_TIMEOUT: 300  # 5 minutes
+  
+  ###########################
+  # NOTIFICATION SETTINGS
+  ###########################
+  # Email address for deployment notifications
+  NOTIFICATION_EMAIL: "team@example.com"
+  
+  # Notification method (Options: email, notification_service, teams)
+  # For Notification Service, you'll need to set NOTIFICATION_SERVICE_URL in GitLab CI/CD variables
+  NOTIFICATION_METHOD: "email"
+  
+  ###########################
+  # TESTING SETTINGS
+  ###########################
+  # Testing variables (set to "true" to enable test mode which simulates operations without making changes)
+  # This is useful for testing pipeline changes without affecting real environments
+  CI_TEST_MODE: "false"
+  
+  # Auto-promotion prevention (set to "false" to require manual deployment triggers)
+  # This prevents automatic deployment promotion between environments
+  AUTO_PROMOTION: "false"
+
+###########################
+# ENVIRONMENT-SPECIFIC VARIABLES
+###########################
+# These sections define environment-specific overrides for variables.
+# They are referenced in the deployment jobs in .gitlab-ci.yml.
+# You can add or modify variables for each environment as needed.
+
+# TEST ENVIRONMENT CONFIGURATION
+# Used for development and testing deployments
+.test_env_variables:
+  variables:
+    # Single server deployment for test environment
+    MULTI_SERVER_DEPLOYMENT: "false"
+    
+    # Test server hostname or IP address
+    DEPLOY_HOST: "test-server.example.com"
+    
+    # Fewer health check retries for faster feedback in test
+    HEALTH_CHECK_RETRIES: 5
+    
+    # Test-specific notification email
+    NOTIFICATION_EMAIL: "test-team@example.com"
+    
+    # Ensure no auto-promotion to test environment
+    AUTO_PROMOTION: "false"
+
+# STAGING ENVIRONMENT CONFIGURATION
+# Used for pre-production verification
+.staging_env_variables:
+  variables:
+    # Enable multi-server deployment for staging
+    MULTI_SERVER_DEPLOYMENT: "true"
+    
+    # Array of staging servers to deploy to
+    DEPLOY_HOSTS: '["staging-server-1.example.com", "staging-server-2.example.com"]'
+    
+    # Fallback single server (used if MULTI_SERVER_DEPLOYMENT is false)
+    DEPLOY_HOST: "staging-server-1.example.com"
+    
+    # Use a different user account for staging deployments
+    # This isolates staging deployments from other environments
+    APP_USER: "staging-appuser"
+    
+    # More health check retries than test, but fewer than production
+    HEALTH_CHECK_RETRIES: 8
+    
+    # Ensure no auto-promotion to staging environment
+    AUTO_PROMOTION: "false"
+
+# PRODUCTION ENVIRONMENT CONFIGURATION
+# Used for live production deployments
+.production_env_variables:
+  variables:
+    # Enable multi-server deployment for production
+    MULTI_SERVER_DEPLOYMENT: "true"
+    
+    # Array of production servers to deploy to
+    # Each server will be deployed to sequentially
+    DEPLOY_HOSTS: '["production-server-1.example.com", "production-server-2.example.com"]'
+    
+    # Fallback single server (used if MULTI_SERVER_DEPLOYMENT is false)
+    DEPLOY_HOST: "production-server-1.example.com"
+    
+    # Production-specific user account
+    APP_USER: "prod-appuser"
+    
+    # Production-specific notification email
+    NOTIFICATION_EMAIL: "prod-team@example.com"
+    
+    # Use Notification Service for production notifications
+    # Note: Requires NOTIFICATION_SERVICE_URL to be set in GitLab CI/CD variables
+    NOTIFICATION_METHOD: "notification_service"
+    
+    # Ensure no auto-promotion between environments
+    # This is a safety flag that prevents automatic deployment
+    AUTO_PROMOTION: "false"

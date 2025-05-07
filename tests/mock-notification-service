@@ -1,0 +1,21 @@
+#!/bin/bash
+# Mock Notification Service for local testing
+# This script simulates the behavior of the notification service
+
+echo "Mock Notification Service"
+echo "========================="
+
+# Check if input is from a pipe or redirect
+if [ -p /dev/stdin ]; then
+  # Read the input
+  NOTIFICATION_DATA=$(cat)
+  echo "Received notification data:"
+  echo "$NOTIFICATION_DATA"
+else
+  # Use command line arguments
+  echo "Received notification arguments:"
+  echo "$@"
+fi
+
+echo "Notification sent successfully."
+exit 0

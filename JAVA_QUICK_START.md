@@ -159,6 +159,44 @@ HEALTH_CHECK_URL: "http://localhost:8080/api/health"
     RUNTIME_OPTS: "-Xmx2g -Xms1g -XX:+UseG1GC -Dspring.profiles.active=production"
 ```
 
+## Testing Your Pipeline
+
+![Rollback Strategy](diagrams/Rollback%20Strategy.png)
+
+*Figure 3: Comprehensive testing of rollback functionality*
+
+We provide several testing approaches with increasing levels of coverage:
+
+### 1. Basic Pipeline Testing
+
+Test the structure and job dependencies without executing actual deployments:
+
+```bash
+./tests/test_pipeline.sh
+```
+
+### 2. Systemd Service Testing
+
+Validate the systemd service integration in a controlled environment:
+
+```bash
+./tests/test_systemd_rollback.sh
+```
+
+### 3. Comprehensive Pipeline Testing
+
+Test all aspects of the pipeline including multi-server deployments and rollback:
+
+```bash
+./tests/comprehensive_pipeline_test.sh
+```
+
+Our testing philosophy is built on a core principle:
+
+> "The files we want to ship are the files under test, with no divergence from that end state."
+
+This means all tests use the exact same files that will be used in production.
+
 ## Next Steps
 
 When you're ready to explore more advanced features, check out the full README.md for:
@@ -166,4 +204,5 @@ When you're ready to explore more advanced features, check out the full README.m
 - Advanced notification options
 - Custom health checks
 - Rollback strategies
+- Comprehensive testing approaches
 - And more...

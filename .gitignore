@@ -1,0 +1,17 @@
+# Build artifacts
+target/
+
+# Test artifacts
+.gitlab-ci-local/
+[*] [INFO] Creating deployment directory: */
+tests/temp/
+
+# Backup files
+backup/
+
+# IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store

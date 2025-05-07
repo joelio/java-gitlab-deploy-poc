@@ -1,0 +1,164 @@
+##############################################################################
+# BUILD JOB TEMPLATES
+#
+# This file defines how the application is built and validated before deployment.
+# It contains templates for building different application types (Java, .NET, Node.js)
+# and for validating branches to ensure only approved branches can be deployed.
+#
+# HOW TO USE:
+# 1. Set APP_TYPE in variables.yml to your application type (java, dotnet, node)
+# 2. These templates are extended by concrete jobs in the main .gitlab-ci.yml
+# 3. For testing without actual builds, set CI_TEST_MODE to "true"
+# 4. To run tests, use the build_with_tests_template instead of build_template
+#
+# CUSTOMIZATION:
+# - Adjust runtime settings in the variables.yml file
+# - Modify the allowed branches in validate_branch_template
+##############################################################################
+
+# Base build template with common settings for all application types
+.build_base_template:
+  stage: build
+  before_script:
+    - echo "Building $APP_NAME (Type: $APP_TYPE, Version: $APP_VERSION)"
+  script:
+    - |
+      echo "Starting build at $(date)"
+      if [ "$CI_TEST_MODE" == "true" ]; then
+        echo "[TEST MODE] Simulating build process"
+        mkdir -p $(dirname "$ARTIFACT_PATTERN")
+        echo "This is a test artifact file" > "$(dirname "$ARTIFACT_PATTERN")/${APP_NAME}-test"
+      else
+        build_application
+      fi
+      echo "Build completed at $(date)"
+  artifacts:
+    name: "${APP_NAME}-${CI_JOB_ID}"
+    expire_in: 1 week
+    when: always
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    - if: '$CI_COMMIT_BRANCH'
+
+# Configurable build template that can be extended for any application type
+.build_template:
+  extends: .build_base_template
+  script:
+    - |
+      echo "Starting build at $(date)"
+      if [ "$CI_TEST_MODE" == "true" ]; then
+        echo "[TEST MODE] Simulating build process"
+        mkdir -p $(dirname "$ARTIFACT_PATH")
+        echo "This is a test artifact file" > "$ARTIFACT_PATH"
+      else
+        # Execute the build command from variables
+        echo "Running build command: $BUILD_COMMAND"
+        eval "$BUILD_COMMAND"
+      fi
+      echo "Build completed at $(date)"
+  artifacts:
+    name: "${APP_NAME}-${CI_JOB_ID}"
+    paths:
+      - $ARTIFACT_PATTERN
+    expire_in: 1 week
+    when: always
+
+# Java-specific build template
+.build_java_template:
+  extends: .build_template
+  image: maven:3.8-openjdk-17
+  variables:
+    APP_TYPE: "java"
+    MAVEN_OPTS: "-Dmaven.repo.local=.m2/repository -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=WARN"
+    MAVEN_CLI_OPTS: "--batch-mode --errors --fail-at-end --show-version"
+  before_script:
+    - echo "Building $APP_NAME with Java $JAVA_HOME"
+    - java -version
+    - mvn -version
+  cache:
+    key: "${CI_JOB_NAME}-${CI_COMMIT_REF_SLUG}"
+    paths:
+      - .m2/repository
+
+# .NET-specific build template
+.build_dotnet_template:
+  extends: .build_template
+  image: mcr.microsoft.com/dotnet/sdk:6.0
+  variables:
+    APP_TYPE: "dotnet"
+  before_script:
+    - echo "Building $APP_NAME with .NET Core"
+    - dotnet --version
+  cache:
+    key: "${CI_JOB_NAME}-${CI_COMMIT_REF_SLUG}"
+    paths:
+      - .nuget/packages
+
+# Node.js-specific build template
+.build_node_template:
+  extends: .build_template
+  image: node:16
+  variables:
+    APP_TYPE: "node"
+  before_script:
+    - echo "Building $APP_NAME with Node.js"
+    - node --version
+    - npm --version
+  cache:
+    key: "${CI_JOB_NAME}-${CI_COMMIT_REF_SLUG}"
+    paths:
+      - node_modules/
+
+# Build with tests template
+.build_with_tests_template:
+  extends: .build_template
+  script:
+    - |
+      echo "Starting build with tests at $(date)"
+      if [ "$CI_TEST_MODE" == "true" ]; then
+        echo "[TEST MODE] Simulating build and test process"
+        mkdir -p target
+        echo "This is a test JAR file" > "target/${APP_NAME}-test.jar"
+        mkdir -p target/surefire-reports
+        echo "<testsuite tests=\"1\"><testcase classname=\"TestClass\" name=\"testMethod\"/></testsuite>" > target/surefire-reports/TEST-example.xml
+      else
+        mvn $MAVEN_CLI_OPTS clean package
+      fi
+      echo "Build with tests completed at $(date)"
+  artifacts:
+    reports:
+      junit: target/surefire-reports/TEST-*.xml
+
+# Validate branch job template
+.validate_branch_template:
+  stage: validate
+  script:
+    - |
+      echo "Validating branch $CI_COMMIT_REF_NAME at $(date)"
+      
+      # Define allowed branches
+      ALLOWED_BRANCHES=("main" "master" "develop" "production" "release/*")
+      BRANCH_ALLOWED=false
+      
+      # Check if current branch is in allowed list
+      for pattern in "${ALLOWED_BRANCHES[@]}"; do
+        if [[ "$CI_COMMIT_REF_NAME" == $pattern ]]; then
+          BRANCH_ALLOWED=true
+          break
+        fi
+      done
+      
+      # Exit with error if branch is not allowed
+      if [ "$BRANCH_ALLOWED" != "true" ]; then
+        echo "ERROR: Deployments are only allowed from protected branches:"
+        printf "  - %s\n" "${ALLOWED_BRANCHES[@]}"
+        echo "Current branch: $CI_COMMIT_REF_NAME"
+        exit 1
+      fi
+      
+      echo "Branch validation passed"
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    - if: '$CI_COMMIT_BRANCH'

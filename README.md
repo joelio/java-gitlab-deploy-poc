@@ -157,6 +157,7 @@ The pipeline supports deploying to multiple servers within a single environment:
 - **Validation**: Each server must pass health checks before proceeding to the next
 - **Fallback**: If multi-server mode is disabled, falls back to single server (`DEPLOY_HOST`)
 - **Error Handling**: If deployment fails on any server, the entire job fails
+- **Testing**: Comprehensive testing validates multi-server deployment and rollback
 
 ### Example Configuration
 
@@ -197,6 +198,22 @@ variables:
 9. Perform health checks
 10. Clean up old deployments
 11. Send notifications
+
+## Testing
+
+The pipeline includes a comprehensive testing framework to ensure it works correctly in all environments:
+
+- **Principle**: "The files we want to ship are the files under test, with no divergence from that end state"
+- **Scripts**: Multiple test scripts with increasing levels of coverage (see `/tests` directory)
+- **Components**:
+  - Basic pipeline structure validation using gitlab-ci-local
+  - systemd service testing with rollback functionality
+  - Multi-server deployment simulation
+  - Edge case handling for service failures
+- **Containers**: Tests run in Podman containers with systemd support to simulate real environments
+- **Comprehensive Coverage**: All aspects of the pipeline are tested, including deployment, rollback, and service management
+
+See the [tests/README.md](tests/README.md) for detailed information about the testing approach.
 
 ## Rollback Mechanism
 

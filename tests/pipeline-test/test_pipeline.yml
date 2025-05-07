@@ -1,0 +1,119 @@
+# This is a test configuration based on the actual .gitlab-ci.yml file
+# It adds test-specific jobs that leverage the exact same include files
+
+include:
+  - local: 'variables.yml'
+  - local: 'functions.yml'
+  - local: 'build.yml'
+  - local: 'deploy.yml'
+  - local: 'rollback.yml'
+  - local: 'notify.yml'
+
+# Define stages to match actual pipeline
+stages:
+  - build
+  - test
+  - deploy
+  - notify
+  - rollback
+
+# Override variables for testing
+variables:
+  CI_TEST_MODE: "true"
+  APP_NAME: "test-app"
+  APP_VERSION: "1.0.0"
+  APP_TYPE: "java"
+  DEPLOY_HOST: "localhost"
+  DEPLOY_DIR: "/test/deployments"
+  BASE_PATH: "/test/app"
+  CONFIG_DIR: "/test/etc/systemd/system"
+  ARTIFACT_PATTERN: "*.jar"
+  ARTIFACT_PATH: "sample-app/target"
+  ARTIFACT_NAME: "test-app-1.0.0.jar"
+
+# Build job based on actual template
+build_test_app:
+  extends: .build_template
+  stage: build
+  script:
+    - echo "Building test application..."
+    - mkdir -p "$ARTIFACT_PATH"
+    - echo "Mock JAR file" > "$ARTIFACT_PATH/$ARTIFACT_NAME"
+    - echo "Build completed successfully"
+  artifacts:
+    paths:
+      - "$ARTIFACT_PATH/$ARTIFACT_NAME"
+
+# Test systemd integration
+test_systemd:
+  stage: test
+  needs: [build_test_app]
+  script:
+    - echo "Testing systemd integration..."
+    - echo "Setting up systemd service"
+    - cp systemd-test.service "$CONFIG_DIR/$APP_NAME.service"
+    - systemctl daemon-reload
+    - echo "✓ Daemon reload successful"
+
+# Deploy using actual template
+deploy_to_test:
+  extends: .deploy_template
+  variables:
+    CI_ENVIRONMENT_NAME: test
+  needs: [test_systemd]
+
+# Notify using actual template 
+notify_success_test:
+  extends: .notify_success_template
+  variables: 
+    CI_ENVIRONMENT_NAME: test
+  needs: [deploy_to_test]
+
+# Rollback test using actual template
+test_rollback:
+  stage: test
+  needs: [deploy_to_test]
+  script:
+    - echo "=== Testing rollback ==="
+    - echo "1. Creating previous version for rollback"
+    - mkdir -p "$DEPLOY_DIR/$APP_NAME/0.9.0"
+    - echo "Mock previous version" > "$DEPLOY_DIR/$APP_NAME/0.9.0/$ARTIFACT_NAME"
+    - echo "✓ Created previous version"
+    - echo "2. Testing service stop for rollback"
+    - systemctl stop "$APP_NAME.service"
+    - echo "✓ Service stopped"
+    - echo "3. Testing symlink update for rollback"
+    - export APP_VERSION_ORIG="$APP_VERSION"
+    - export APP_VERSION="0.9.0"
+    - ln -sfn "$DEPLOY_DIR/$APP_NAME/$APP_VERSION" "$BASE_PATH/$APP_NAME/current"
+    - echo "✓ Symlink updated to previous version"
+    - echo "4. Testing service restart after rollback"
+    - systemctl start "$APP_NAME.service"
+    - echo "✓ Service restarted with previous version"
+    - echo "5. Testing service status after rollback"
+    - systemctl status "$APP_NAME.service"
+    - echo "✓ Service is running with rollback version"
+    - echo "6. Restoring original version"
+    - export APP_VERSION="$APP_VERSION_ORIG"
+    - unset APP_VERSION_ORIG
+
+# Rollback job using actual template
+rollback_test:
+  extends: .rollback_manual_template
+  variables:
+    CI_ENVIRONMENT_NAME: test
+  when: on-failure # Auto-trigger for testing instead of manual
+  needs: [test_rollback]
+
+# Full test cleanup
+test_cleanup:
+  stage: rollback
+  when: always
+  needs: [rollback_test]
+  script:
+    - echo "=== Cleanup ==="
+    - systemctl stop "$APP_NAME.service" || true
+    - systemctl disable "$APP_NAME.service" || true
+    - rm -f "$CONFIG_DIR/$APP_NAME.service"
+    - systemctl daemon-reload
+    - echo "✓ Cleanup completed"

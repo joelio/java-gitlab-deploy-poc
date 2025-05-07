@@ -1,0 +1,70 @@
+# Test GitLab CI pipeline structure using the actual files
+# Focus on pipeline structure, job dependencies, and template inheritance
+
+include:
+  - variables.yml
+  - build.yml
+  - deploy.yml
+  - rollback.yml
+  - notify.yml
+
+stages:
+  - build
+  - test
+  - deploy
+  - notify
+  - rollback
+
+# We're using mock implementations to verify structure, not actual execution
+variables:
+  CI_TEST_MODE: "true"
+  APP_NAME: "test-app"
+  APP_VERSION: "1.0.0"
+  ARTIFACT_PATH: "target"
+  ARTIFACT_NAME: "test-app.jar"
+
+# Simple build job that extends the template
+build:
+  extends: .build_template
+  script:
+    - echo "Building test application..."
+    - mkdir -p target
+    - echo "Mock JAR file" > target/test-app-1.0.0.jar
+    - echo "Build completed successfully"
+
+# Test deployment job that extends the template
+deploy_to_test:
+  extends: .deploy_template
+  variables:
+    CI_ENVIRONMENT_NAME: test
+  script:
+    - echo "Deploying to test environment"
+    - echo "Version: $APP_VERSION"
+    - echo "Deploy job completed successfully"
+  needs:
+    - build
+
+# Notification job that extends the template
+notify_success_test:
+  extends: .notify_success_template
+  variables:
+    CI_ENVIRONMENT_NAME: test
+  script:
+    - echo "Sending success notification for test environment"
+  needs:
+    - deploy_to_test
+
+# Rollback job that extends the template
+rollback_test:
+  extends: .rollback_manual_template
+  variables:
+    CI_ENVIRONMENT_NAME: test
+  script:
+    - echo "Rolling back test environment to previous version"
+    - echo "Would stop service"
+    - echo "Would repoint symlink to previous version"
+    - echo "Would restart service"
+    - echo "Rollback completed successfully"
+  needs:
+    - deploy_to_test
+  when: manual

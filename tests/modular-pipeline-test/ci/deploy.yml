@@ -1,0 +1,209 @@
+##############################################################################
+# DEPLOYMENT JOB TEMPLATES
+#
+# This file defines how the application is deployed to various environments.
+# It contains templates for standard deployment and cleanup operations with
+# comprehensive error handling and logging.
+#
+# HOW IT WORKS:
+# 1. The deployment process follows a step-by-step approach with validation at each step
+# 2. Each step is logged with timestamps and detailed status messages
+# 3. Timeouts prevent hanging deployments and ensure pipeline reliability
+# 4. Health checks verify the application is running correctly after deployment
+#
+# DEPLOYMENT STEPS:
+# 1. Create required directories on the deployment server
+# 2. Backup current deployment for potential rollback
+# 3. Create new deployment directory
+# 4. Upload application JAR file
+# 5. Set up systemd service file
+# 6. Stop current service
+# 7. Update symlink to point to new deployment
+# 8. Enable linger for user service persistence
+# 9. Start the service
+# 10. Perform health checks to verify deployment
+#
+# TESTING:
+# - Set CI_TEST_MODE to "true" to simulate deployment without making changes
+# - Use the deploy_test_template for test runs
+##############################################################################
+
+# Main deployment template with comprehensive error handling and timeouts
+.deploy_template:
+  stage: deploy
+  variables:
+    # Set a default timeout for deployment operations
+    DEPLOYMENT_TIMEOUT: 300  # 5 minutes in seconds
+  before_script:
+    - |
+      echo "Starting deployment of $APP_NAME to $CI_ENVIRONMENT_NAME environment"
+      echo "Deployment host: $DEPLOY_HOST"
+      echo "Application user: $APP_USER"
+      echo "Java home: $JAVA_HOME"
+      
+      # Set up timeout protection
+      function timeout_handler() {
+        echo "ERROR: Deployment timed out after $DEPLOYMENT_TIMEOUT seconds"
+        exit 1
+      }
+      
+      # Set trap for timeout
+      trap timeout_handler ALRM
+      
+      # Start timeout countdown in background
+      (sleep $DEPLOYMENT_TIMEOUT && kill -ALRM $$) &
+      TIMEOUT_PID=$!
+      
+      # Function to cancel timeout
+      function cancel_timeout() {
+        if [ -n "$TIMEOUT_PID" ]; then
+          kill $TIMEOUT_PID 2>/dev/null || true
+        fi
+      }
+  script:
+    - *functions
+    - |
+      # Check for auto-promotion prevention
+      if [[ "$AUTO_PROMOTION" == "true" && "$CI_PIPELINE_SOURCE" != "web" && "$CI_PIPELINE_SOURCE" != "api" ]]; then
+        log "ERROR" "Automatic promotion to $CI_ENVIRONMENT_NAME environment is not allowed."
+        log "ERROR" "Deployments must be triggered manually via GitLab UI or API."
+        exit 1
+      fi
+      
+      # Define the main deployment function
+      function perform_deployment() {
+        set -e  # Exit immediately if any command fails
+        
+        echo "=== STEP 1: Preparing deployment environment ==="
+        create_directories || { echo "Failed to create directories"; return 1; }
+        
+        echo "=== STEP 2: Backing up current deployment ==="
+        backup_current_deployment || { echo "Warning: Backup failed, but continuing"; }
+        cleanup_old_backups
+        
+        echo "=== STEP 3: Creating new deployment ==="
+        NEW_DEPLOY_DIR=$(create_deployment_dir) || { echo "Failed to create deployment directory"; return 1; }
+        echo "New deployment directory: $NEW_DEPLOY_DIR"
+        
+        echo "=== STEP 4: Uploading application ==="
+        upload_application "$NEW_DEPLOY_DIR" || { echo "Failed to upload application"; return 1; }
+        
+        echo "=== STEP 5: Setting up service ==="
+        setup_systemd_service || { echo "Failed to set up systemd service"; return 1; }
+        
+        echo "=== STEP 6: Stopping current service ==="
+        stop_service
+        
+        echo "=== STEP 7: Updating symlink ==="
+        update_symlink "$NEW_DEPLOY_DIR" || { echo "Failed to update symlink"; return 1; }
+        
+        echo "=== STEP 8: Enabling linger ==="
+        enable_linger || { echo "Warning: Failed to enable linger, but continuing"; }
+        
+        echo "=== STEP 9: Starting service ==="
+        start_service || { echo "Failed to start service"; return 1; }
+        
+        echo "=== STEP 10: Performing health check ==="
+        if ! perform_health_check; then
+          echo "Health check failed. Initiating rollback..."
+          return 1
+        fi
+        
+        return 0
+      }
+      
+      # Execute deployment using the multi-server function
+      log "INFO" "Starting deployment to $CI_ENVIRONMENT_NAME environment"
+      deploy_to_servers perform_deployment
+      
+      # Check deployment result
+      if [ $? -eq 0 ]; then
+        echo "=== Deployment completed successfully ==="
+      else
+        echo "=== Deployment failed ==="
+        exit 1
+      fi
+      
+      # Cancel the timeout since we're done
+      cancel_timeout
+  after_script:
+    - |
+      # Ensure timeout is cancelled
+      if [ -n "$TIMEOUT_PID" ]; then
+        kill $TIMEOUT_PID 2>/dev/null || true
+      fi
+  dependencies:
+    - build
+  needs:
+    - build
+    - validate_branch
+  allow_failure: false
+  retry:
+    max: 1
+    when: script_failure
+  timeout: 15m  # Overall job timeout as a safety net
+
+# Test deployment template for testing deployment without actually deploying
+.deploy_test_template:
+  extends: .deploy_template
+  variables:
+    CI_TEST_MODE: "true"
+  before_script:
+    - echo "Running in TEST MODE - no actual deployment will occur"
+  after_script:
+    - echo "TEST MODE deployment simulation completed"
+
+# Cleanup job template with improved logging and error handling
+.cleanup_template:
+  stage: deploy
+  script:
+    - *functions
+    - |
+      echo "Starting cleanup of old deployments"
+      log "INFO" "Cleaning up old deployments (keeping $MAX_BACKUPS)"
+      
+      # Get current deployment
+      CURRENT=$(ssh_cmd "readlink -f $CURRENT_LINK || echo ''")
+      if [ -n "$CURRENT" ]; then
+        log "INFO" "Current deployment: $CURRENT"
+      else
+        log "WARN" "No current deployment found"
+      fi
+      
+      # Get all deployments
+      ALL_DEPLOYMENTS=$(ssh_cmd "find $DEPLOY_DIR -maxdepth 1 -type d -name '${APP_NAME}-*' | sort -r")
+      DEPLOYMENT_COUNT=$(echo "$ALL_DEPLOYMENTS" | wc -l)
+      log "INFO" "Found $DEPLOYMENT_COUNT deployment directories"
+      
+      # Keep track of how many we've kept
+      KEPT=0
+      REMOVED=0
+      
+      # Process each deployment
+      for DEPLOYMENT in $ALL_DEPLOYMENTS; do
+        # Skip if this is the current deployment
+        if [ "$DEPLOYMENT" = "$CURRENT" ]; then
+          log "INFO" "Keeping current deployment: $DEPLOYMENT"
+          continue
+        fi
+        
+        # Keep if we haven't reached our limit
+        if [ $KEPT -lt $MAX_BACKUPS ]; then
+          log "INFO" "Keeping deployment within limit: $DEPLOYMENT"
+          KEPT=$((KEPT+1))
+          continue
+        fi
+        
+        # Otherwise, delete it
+        log "INFO" "Removing old deployment: $DEPLOYMENT"
+        if ssh_cmd "rm -rf $DEPLOYMENT"; then
+          REMOVED=$((REMOVED+1))
+        else
+          log "WARN" "Failed to remove deployment: $DEPLOYMENT"
+        fi
+      done
+      
+      log "INFO" "Cleanup completed. Kept: $KEPT, Removed: $REMOVED"
+  when: on_success
+  needs:
+    - deploy

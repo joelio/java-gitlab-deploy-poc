@@ -1,0 +1,12 @@
+concurrent = 1
+check_interval = 0
+
+[session_server]
+  session_timeout = 1800
+
+[[runners]]
+  name = "local-test-runner"
+  url = "https://gitlab.com/"
+  token = "local-test-token"
+  executor = "shell"
+  shell = "bash"

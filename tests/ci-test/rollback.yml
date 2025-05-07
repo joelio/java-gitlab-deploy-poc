@@ -1,0 +1,43 @@
+# Modified rollback.yml for testing
+# This file is identical to the original but sources functions.yml directly
+
+.rollback_template:
+  stage: rollback
+  when: manual
+  variables:
+    # Set a default timeout for rollback operations
+    ROLLBACK_TIMEOUT: 300  # 5 minutes in seconds
+  script:
+    - source ci/functions.yml
+    - |
+      # Validate rollback requirements
+      if [ -z "$BACKUP_DIR" ]; then
+        log "ERROR" "BACKUP_DIR is not set. Cannot perform rollback."
+        exit 1
+      fi
+      
+      # Find the most recent backup
+      log "INFO" "Finding most recent backup for rollback"
+      LATEST_BACKUP=$(ssh_cmd "find $BACKUP_DIR -maxdepth 1 -type d -name \"${APP_NAME}-backup-*\" | sort -r | head -n 1")
+      
+      if [ -z "$LATEST_BACKUP" ]; then
+        log "ERROR" "No backup found for rollback in $BACKUP_DIR"
+        exit 1
+      fi
+      
+      log "INFO" "Found backup for rollback: $LATEST_BACKUP"
+      
+      # Stop the current service
+      stop_service
+      
+      # Update symlink to point to backup
+      log "INFO" "Updating symlink to point to backup deployment"
+      ssh_cmd "ln -sf $LATEST_BACKUP $CURRENT_LINK"
+      
+      # Start the service with the backup version
+      start_service
+      
+      # Verify rollback
+      verify_deployment "rollback"
+      
+      log "INFO" "Rollback to backup $LATEST_BACKUP completed successfully"

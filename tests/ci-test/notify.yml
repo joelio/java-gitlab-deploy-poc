@@ -1,0 +1,30 @@
+# Modified notify.yml for testing
+# This file is identical to the original but sources functions.yml directly
+
+.notify_success_template:
+  stage: notify
+  script:
+    - source ci/functions.yml
+    - |
+      # Send success notification
+      log "INFO" "Sending success notification for $CI_ENVIRONMENT_NAME deployment"
+      send_notification "SUCCESS" "Deployment to $CI_ENVIRONMENT_NAME environment completed successfully"
+
+.notify_failure_template:
+  stage: notify
+  when: on_failure
+  script:
+    - source ci/functions.yml
+    - |
+      # Send failure notification
+      log "ERROR" "Sending failure notification for $CI_ENVIRONMENT_NAME deployment"
+      send_notification "FAILURE" "Deployment to $CI_ENVIRONMENT_NAME environment failed"
+
+.notify_rollback_template:
+  stage: notify
+  script:
+    - source ci/functions.yml
+    - |
+      # Send rollback notification
+      log "WARNING" "Sending rollback notification for $CI_ENVIRONMENT_NAME environment"
+      send_notification "ROLLBACK" "Rollback to previous version in $CI_ENVIRONMENT_NAME environment completed"

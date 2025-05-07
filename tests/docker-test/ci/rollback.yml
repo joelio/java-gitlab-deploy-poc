@@ -1,0 +1,207 @@
+##############################################################################
+# ROLLBACK JOB TEMPLATES
+#
+# This file defines how the application is rolled back in case of deployment failures.
+# It contains templates for both manual and automatic rollbacks with comprehensive
+# error handling and validation.
+#
+# ROLLBACK STRATEGIES:
+# 1. LAST SUCCESSFUL DEPLOYMENT: First tries to use the last known successful deployment
+#    (tracked in ${BASE_PATH}/app/last_successful_deploy)
+# 2. LATEST BACKUP: Falls back to the most recent backup if no successful deployment ID exists
+#
+# HOW IT WORKS:
+# 1. Identify the appropriate rollback target using the strategies above
+# 2. Stop the current service
+# 3. Update the symlink to point to the rollback target
+# 4. Start the service
+# 5. Perform health checks to verify the rollback was successful
+#
+# MANUAL VS AUTOMATIC:
+# - Manual rollback (.rollback_manual_template): Triggered manually by a user
+# - Automatic rollback (.rollback_auto_template): Triggered automatically when a deployment fails
+#
+# TESTING:
+# - Set CI_TEST_MODE to "true" to simulate rollback without making changes
+# - Use the rollback_test_template for test runs
+##############################################################################
+
+# Common rollback functions
+.rollback_common:
+  variables:
+    ROLLBACK_TIMEOUT: 300  # 5 minutes in seconds
+  before_script:
+    - |
+      echo "Preparing for rollback operation in $CI_ENVIRONMENT_NAME environment"
+      echo "Deployment host: $DEPLOY_HOST"
+      echo "Application user: $APP_USER"
+      
+      # Set up timeout protection
+      function timeout_handler() {
+        echo "ERROR: Rollback timed out after $ROLLBACK_TIMEOUT seconds"
+        exit 1
+      }
+      
+      # Set trap for timeout
+      trap timeout_handler ALRM
+      
+      # Start timeout countdown in background
+      (sleep $ROLLBACK_TIMEOUT && kill -ALRM $$) &
+      TIMEOUT_PID=$!
+      
+      # Function to cancel timeout
+      function cancel_timeout() {
+        if [ -n "$TIMEOUT_PID" ]; then
+          kill $TIMEOUT_PID 2>/dev/null || true
+        fi
+      }
+  after_script:
+    - |
+      # Ensure timeout is cancelled
+      if [ -n "$TIMEOUT_PID" ]; then
+        kill $TIMEOUT_PID 2>/dev/null || true
+      fi
+
+# Manual rollback job template with improved error handling
+.rollback_manual_template:
+  extends: .rollback_common
+  stage: rollback
+  script:
+    - *functions
+    - |
+      echo "=== STEP 1: Identifying rollback target ==="
+      # Get list of available backups
+      LATEST_BACKUP=$(get_latest_backup)
+      if [ -z "$LATEST_BACKUP" ]; then
+        log "ERROR" "No backups available for rollback"
+        exit 1
+      fi
+      
+      log "INFO" "Rolling back to backup: $LATEST_BACKUP"
+      
+      echo "=== STEP 2: Stopping current service ==="
+      stop_service
+      
+      echo "=== STEP 3: Updating symlink to backup ==="
+      # Verify backup exists before updating symlink
+      if ! ssh_cmd "test -d $BACKUP_DIR/$LATEST_BACKUP"; then
+        log "ERROR" "Backup directory $BACKUP_DIR/$LATEST_BACKUP does not exist"
+        exit 1
+      fi
+      
+      if ! update_symlink "$BACKUP_DIR/$LATEST_BACKUP"; then
+        log "ERROR" "Failed to update symlink to backup"
+        exit 1
+      fi
+      
+      echo "=== STEP 4: Starting service ==="
+      if ! start_service; then
+        log "ERROR" "Failed to start service after rollback"
+        exit 1
+      fi
+      
+      echo "=== STEP 5: Performing health check ==="
+      if ! perform_health_check; then
+        log "ERROR" "Health check failed after rollback. Please check the application logs."
+        exit 1
+      fi
+      
+      log "INFO" "Rollback successful and health check passed!"
+      # Cancel the timeout since we're done
+      cancel_timeout
+  when: manual
+  needs: []
+  timeout: 15m  # Overall job timeout as a safety net
+
+# Test rollback job template for testing rollback without actually rolling back
+.rollback_test_template:
+  extends: .rollback_manual_template
+  variables:
+    CI_TEST_MODE: "true"
+  before_script:
+    - echo "Running in TEST MODE - no actual rollback will occur"
+  after_script:
+    - echo "TEST MODE rollback simulation completed"
+
+# Auto rollback job template with comprehensive error handling
+.rollback_auto_template:
+  extends: .rollback_common
+  stage: rollback
+  script:
+    - *functions
+    - |
+      log "INFO" "Automatic rollback triggered due to deployment failure"
+      
+      echo "=== STEP 1: Identifying rollback target ==="
+      # First try to get last successful deploy ID
+      LAST_DEPLOY_ID=$(get_last_successful_deploy)
+      ROLLBACK_TARGET=""
+      
+      if [ -z "$LAST_DEPLOY_ID" ]; then
+        log "WARN" "No last successful deployment ID found"
+        
+        # Try to get latest backup if no last successful deploy ID
+        LATEST_BACKUP=$(get_latest_backup)
+        if [ -z "$LATEST_BACKUP" ]; then
+          log "ERROR" "No backups or last successful deploy ID available for rollback"
+          exit 1
+        fi
+        
+        log "INFO" "Rolling back to backup: $LATEST_BACKUP"
+        ROLLBACK_TARGET="$BACKUP_DIR/$LATEST_BACKUP"
+      else
+        log "INFO" "Rolling back to previous successful deployment: $LAST_DEPLOY_ID"
+        PREVIOUS_DEPLOY_DIR="$DEPLOY_DIR/${APP_NAME}-${LAST_DEPLOY_ID}"
+        
+        # Verify previous deployment directory exists
+        if ! ssh_cmd "test -d $PREVIOUS_DEPLOY_DIR"; then
+          log "ERROR" "Previous deployment directory $PREVIOUS_DEPLOY_DIR does not exist"
+          
+          # Fall back to latest backup
+          LATEST_BACKUP=$(get_latest_backup)
+          if [ -z "$LATEST_BACKUP" ]; then
+            log "ERROR" "No backups available for fallback rollback"
+            exit 1
+          fi
+          
+          log "INFO" "Falling back to backup: $LATEST_BACKUP"
+          ROLLBACK_TARGET="$BACKUP_DIR/$LATEST_BACKUP"
+        else
+          ROLLBACK_TARGET="$PREVIOUS_DEPLOY_DIR"
+        fi
+      fi
+      
+      # Ensure we have a valid rollback target
+      if [ -z "$ROLLBACK_TARGET" ]; then
+        log "ERROR" "Could not determine a valid rollback target"
+        exit 1
+      fi
+      
+      echo "=== STEP 2: Stopping current service ==="
+      stop_service
+      
+      echo "=== STEP 3: Updating symlink to rollback target ==="
+      if ! update_symlink "$ROLLBACK_TARGET"; then
+        log "ERROR" "Failed to update symlink to rollback target"
+        exit 1
+      fi
+      
+      echo "=== STEP 4: Starting service ==="
+      if ! start_service; then
+        log "ERROR" "Failed to start service after rollback"
+        exit 1
+      fi
+      
+      echo "=== STEP 5: Performing health check ==="
+      if ! perform_health_check; then
+        log "ERROR" "Health check failed after rollback. Please check the application logs."
+        exit 1
+      fi
+      
+      log "INFO" "Rollback successful and health check passed!"
+      # Cancel the timeout since we're done
+      cancel_timeout
+  when: on_failure
+  needs:
+    - deploy
+  timeout: 15m  # Overall job timeout as a safety net

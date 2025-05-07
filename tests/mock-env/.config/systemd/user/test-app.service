@@ -1,0 +1,11 @@
+[Unit]
+Description=test-app Service
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=java -jar /Users/joel/src/gitlab-ci-refactor/tests/mock-env/app/current/test-app-1.0.0.jar
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

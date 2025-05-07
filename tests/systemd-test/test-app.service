@@ -1,0 +1,14 @@
+[Unit]
+Description=Test Application
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/app/test-app/current
+ExecStart=/bin/bash -c "while true; do echo 'Service is running'; sleep 5; done"
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

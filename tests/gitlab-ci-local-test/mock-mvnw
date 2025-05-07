@@ -1,0 +1,9 @@
+#!/bin/bash
+# Mock Maven wrapper for testing
+
+echo "Mock Maven Wrapper - Simulating internal Maven component"
+echo "Command: $@"
+echo "Building package..."
+mkdir -p target
+echo "Mock JAR file created by mock-mvnw" > target/test-app-1.0.0.jar
+echo "Build completed successfully."

@@ -1,0 +1,210 @@
+##############################################################################
+# GITLAB CI/CD PIPELINE CONFIGURATION
+# 
+# This is the main entry point for the CI/CD pipeline. It includes modular
+# components from the /ci directory to keep the configuration organized and
+# maintainable.
+#
+# HOW TO USE THIS PIPELINE:
+# 1. Customize variables in /ci/variables.yml for your project and environments
+# 2. The pipeline will automatically build, deploy, and notify based on branches
+# 3. For testing without actual deployment, set CI_TEST_MODE to "true"
+#
+# TROUBLESHOOTING:
+# - Check job logs for detailed error messages with timestamps
+# - Each deployment step has clear error messages and validation
+# - For testing, use the test templates that simulate operations
+##############################################################################
+
+# Include modular CI/CD components
+include:
+  - local: '/ci/variables.yml'  # Global and environment-specific variables
+  - local: '/ci/functions.yml'  # Shell functions for deployment operations
+  - local: '/ci/build.yml'      # Build job templates
+  - local: '/ci/deploy.yml'     # Deployment job templates
+  - local: '/ci/rollback.yml'   # Rollback job templates
+  - local: '/ci/notify.yml'     # Notification job templates
+
+stages:
+  - validate
+  - build
+  - deploy
+  - notify
+  - rollback
+
+# Global variables are now defined in ci/variables.yml
+
+# Functions are now defined in ci/functions.yml
+
+# Concrete jobs for validation
+validate_branch:
+  extends: .validate_branch_template
+
+# Concrete build job
+build:
+  extends: .build_template
+
+# Deployment jobs for each environment
+deploy_test:
+  extends:
+    - .deploy_template
+    - .test_env_variables
+  environment:
+    name: test
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+    - if: '$CI_COMMIT_BRANCH =~ /^feature\//' 
+      when: manual
+
+deploy_staging:
+  extends:
+    - .deploy_template
+    - .staging_env_variables
+  environment:
+    name: staging
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH =~ /^release\/'
+      when: manual
+
+deploy_production:
+  extends:
+    - .deploy_template
+    - .production_env_variables
+  environment:
+    name: production
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_BRANCH == "production"'
+      when: manual
+
+# Manual rollback jobs for each environment
+rollback_manual_test:
+  extends:
+    - .rollback_manual_template
+    - .test_env_variables
+  environment:
+    name: test
+
+rollback_manual_staging:
+  extends:
+    - .rollback_manual_template
+    - .staging_env_variables
+  environment:
+    name: staging
+
+rollback_manual_production:
+  extends:
+    - .rollback_manual_template
+    - .production_env_variables
+  environment:
+    name: production
+
+# Auto rollback jobs for each environment
+rollback_auto_test:
+  extends:
+    - .rollback_auto_template
+    - .test_env_variables
+  environment:
+    name: test
+  needs:
+    - deploy_test
+
+rollback_auto_staging:
+  extends:
+    - .rollback_auto_template
+    - .staging_env_variables
+  environment:
+    name: staging
+  needs:
+    - deploy_staging
+
+rollback_auto_production:
+  extends:
+    - .rollback_auto_template
+    - .production_env_variables
+  environment:
+    name: production
+  needs:
+    - deploy_production
+
+# Cleanup jobs for each environment
+cleanup_test:
+  extends:
+    - .cleanup_template
+    - .test_env_variables
+  environment:
+    name: test
+  needs:
+    - deploy_test
+
+cleanup_staging:
+  extends:
+    - .cleanup_template
+    - .staging_env_variables
+  environment:
+    name: staging
+  needs:
+    - deploy_staging
+
+cleanup_production:
+  extends:
+    - .cleanup_template
+    - .production_env_variables
+  environment:
+    name: production
+  needs:
+    - deploy_production
+
+# Notification jobs for each environment
+notify_success_test:
+  extends: 
+    - .notify_success_template
+    - .test_env_variables
+  environment:
+    name: test
+  needs:
+    - deploy_test
+
+notify_success_staging:
+  extends: 
+    - .notify_success_template
+    - .staging_env_variables
+  environment:
+    name: staging
+  needs:
+    - deploy_staging
+
+notify_success_production:
+  extends: 
+    - .notify_success_template
+    - .production_env_variables
+  environment:
+    name: production
+  needs:
+    - deploy_production
+
+notify_failure_test:
+  extends: 
+    - .notify_failure_template
+    - .test_env_variables
+  environment:
+    name: test
+  needs:
+    - deploy_test
+
+notify_failure_staging:
+  extends: 
+    - .notify_failure_template
+    - .staging_env_variables
+  environment:
+    name: staging
+  needs:
+    - deploy_staging
+
+notify_failure_production:
+  extends: 
+    - .notify_failure_template
+    - .production_env_variables
+  environment:
+    name: production
+  needs:
+    - deploy_production

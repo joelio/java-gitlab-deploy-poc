@@ -1,0 +1,33 @@
+#!/bin/bash
+# Mock Maven wrapper for local testing
+# This script simulates the behavior of the internal Maven component
+
+echo "Mock Maven Wrapper - Simulating internal Maven component"
+echo "Command: $@"
+
+# Parse the command
+if [[ "$*" == *"package"* ]]; then
+  echo "Building package..."
+  
+  # Create a sample JAR file for testing
+  mkdir -p target
+  echo "This is a mock JAR file for testing" > target/test-app.jar
+  echo "Build completed successfully."
+  exit 0
+elif [[ "$*" == *"sonar"* ]]; then
+  echo "Running Sonar analysis..."
+  echo "Sonar analysis completed successfully."
+  exit 0
+elif [[ "$*" == *"flyway"* ]]; then
+  echo "Running Flyway migration..."
+  echo "Flyway migration completed successfully."
+  exit 0
+elif [[ "$*" == *"liquibase"* ]]; then
+  echo "Running Liquibase update..."
+  echo "Liquibase update completed successfully."
+  exit 0
+else
+  echo "Executing Maven command: $@"
+  echo "Command executed successfully."
+  exit 0
+fi

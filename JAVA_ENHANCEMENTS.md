@@ -191,6 +191,69 @@ pages:
     - main
 ```
 
+## Advanced Testing Framework
+
+Enhance your pipeline with a comprehensive testing framework that validates all aspects of your deployment process:
+
+![Rollback Strategy Testing](diagrams/Rollback%20Strategy.png)
+
+*Figure 3: Comprehensive testing of deployment and rollback functionality*
+
+1. Create a robust testing environment in your `/tests` directory:
+
+```bash
+# Structure your tests directory like this
+tests/
+  ├── test_pipeline.sh               # Basic pipeline structure testing
+  ├── test_systemd_rollback.sh       # Systemd service and rollback testing
+  ├── comprehensive_pipeline_test.sh  # Complete pipeline validation
+  ├── convert_to_extends.sh          # YAML anchor to extends conversion
+  └── README.md                      # Testing documentation
+```
+
+2. For comprehensive testing, add a container-based systemd test environment:
+
+```yaml
+# Add to ci/testing.yml
+systemd_test:
+  stage: test
+  image: docker:20
+  services:
+    - docker:20-dind
+  variables:
+    DOCKER_TLS_CERTDIR: ""
+  script:
+    - docker run --privileged --rm -v "/sys/fs/cgroup:/sys/fs/cgroup:rw" -v "$CI_PROJECT_DIR:/test" registry.access.redhat.com/ubi9/ubi:latest /bin/bash -c "cd /test && ./tests/comprehensive_pipeline_test.sh"
+  when: manual
+```
+
+3. Add a template for testing multi-server deployments:
+
+```yaml
+# Add to ci/testing.yml
+.multi_server_test:
+  script:
+    - export DEPLOY_HOSTS='["server1.example.com", "server2.example.com", "server3.example.com"]'
+    - export MULTI_SERVER_DEPLOYMENT="true"
+    - ./tests/comprehensive_pipeline_test.sh
+  when: manual
+```
+
+4. Implement edge case testing for service failures and recoveries:
+
+```bash
+# Inside your comprehensive test script
+function test_service_failure() {
+  # Simulate service failure
+  systemctl stop ${APP_NAME}.service
+  
+  # Verify automatic rollback triggers
+  # ...
+}
+```
+
+The testing framework ensures that "the files we want to ship are the files under test, with no divergence from that end state."
+
 ## How to Implement
 
 These enhancements are designed to be modular. You can implement them one at a time as your team's needs evolve:
@@ -198,6 +261,7 @@ These enhancements are designed to be modular. You can implement them one at a t
 1. Start with the basic pipeline from the JAVA_QUICK_START.md guide
 2. Choose the enhancements that provide the most value for your team
 3. Implement them one at a time, testing each addition
-4. Document which enhancements you've added to your pipeline
+4. Consider adding the comprehensive testing framework early in your implementation
+5. Document which enhancements you've added to your pipeline
 
 This approach allows you to gradually improve your pipeline without overwhelming your team with complexity.
