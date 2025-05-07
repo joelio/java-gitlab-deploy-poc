@@ -1,0 +1,72 @@
+@startuml Java Deployment Process
+!theme cerulean
+skinparam backgroundColor white
+skinparam defaultTextAlignment center
+
+title Java Application Deployment Process
+
+' Use cleaner styling
+skinparam activity {
+  BackgroundColor #f5f5f5
+  BorderColor #2c3e50
+  FontColor #2c3e50
+  BorderThickness 1
+  Shadowing false
+  ArrowColor #3498db
+  ArrowThickness 1.5
+  RoundCorner 10
+}
+
+' Enforce strict vertical layout for cleaner appearance
+skinparam ConditionEndStyle hline
+
+' Start the diagram
+start
+
+' Group preparation steps
+partition "1. Preparation" {
+  :Create Required Directories;
+  note right: /opt/app/{APP_NAME}
+  :Backup Current Deployment;
+  note right: Preserves rollback capability
+  :Create New Deployment Directory;
+  note right: /opt/app/{APP_NAME}/{APP_VERSION}
+}
+
+' Group deployment steps
+partition "2. Java Artifact Deployment" {
+  :Upload Java JAR File;
+  note right: SCP transfer with error handling
+  :Setup Systemd Service;
+  note right: Java-specific service configuration
+  :Stop Current Service;
+  note right: systemctl stop {APP_NAME}
+  :Update Symlink;
+  note right: /opt/app/{APP_NAME}/current → version directory
+}
+
+' Group service steps
+partition "3. Java Service Management" {
+  :Enable Linger for User;
+  note right: Required for user systemd services
+  :Start Java Service;
+  note right: systemctl --user start {APP_NAME}
+}
+
+' Group validation steps
+partition "4. Validation" {
+  if (Health Check Passes?) then (yes)
+    :Deployment Successful;
+    :Send Success Notification;
+    note right: Email or Notification Service
+  else (no)
+    :Initiate Automatic Rollback;
+    note right: Revert to previous version
+    :Restart Service with Previous Version;
+    :Send Failure Notification;
+  endif
+}
+
+stop
+
+@enduml

@@ -1,0 +1,108 @@
+@startuml Java Rollback Strategy
+!theme cerulean
+skinparam backgroundColor white
+skinparam defaultTextAlignment center
+
+<style>
+rectangleContainer {
+  FontColor #2c3e50
+  FontSize 14
+  FontStyle bold
+}
+</style>
+
+title Java Application Rollback Strategy
+
+skinparam rectangle {
+  BackgroundColor #f5f5f5
+  BorderColor #2c3e50
+  FontColor #2c3e50
+  BorderThickness 1
+  Shadowing false
+  RoundCorner 8
+}
+
+skinparam arrow {
+  Color #3498db
+  Thickness 1.5
+}
+
+skinparam note {
+  BackgroundColor #f8f9fa
+  BorderColor #dee2e6
+  FontColor #495057
+  BorderThickness 1
+}
+
+rectangle "Deployment Failure" as failure #ffcdd2 {
+  rectangle "Health Check Failure" as health_failure #ef9a9a
+  rectangle "Service Start Failure" as service_failure #e57373
+  rectangle "Java Runtime Error" as java_error #ef5350
+}
+
+rectangle "Automatic Rollback" as auto #e8f5e9 {
+  rectangle "1. Find Last Successful Deploy" as last_deploy #c8e6c9
+  rectangle "2. Fall Back to Latest Backup" as latest_backup #a5d6a7
+  rectangle "3. Update Symlink" as update_symlink_auto #81c784
+  rectangle "4. Restart Java Service" as restart_auto #66bb6a
+  rectangle "5. Verify Health" as health_auto #4caf50
+}
+
+rectangle "Manual Rollback" as manual #e3f2fd {
+  rectangle "1. Select Backup Version" as select_backup #bbdefb
+  rectangle "2. Update Symlink" as update_symlink_manual #90caf9
+  rectangle "3. Restart Java Service" as restart_manual #64b5f6
+  rectangle "4. Verify Health" as health_manual #42a5f5
+}
+
+rectangle "Testing Framework" as testing #e1f5fe {
+  rectangle "1. Pipeline Structure Tests" as structure_tests #b3e5fc
+  rectangle "2. Systemd Service Tests" as systemd_tests #81d4fa
+  rectangle "3. Rollback Functionality Tests" as rollback_tests #4fc3f7
+  rectangle "4. Multi-Server Tests" as multi_server_tests #29b6f6
+  rectangle "5. Edge Case Tests" as edge_case_tests #03a9f4
+}
+
+' Cleaner connections
+failure -down-> auto : Triggers
+failure -right-> manual : User Initiates
+
+health_failure -[#f44336]-> auto
+service_failure -[#f44336]-> auto
+java_error -[#f44336]-> auto
+
+last_deploy -[#4caf50]-> update_symlink_auto : If Found
+last_deploy -[#f44336]-> latest_backup : If Not Found
+latest_backup -[#4caf50]-> update_symlink_auto
+update_symlink_auto -[#4caf50]-> restart_auto
+restart_auto -[#4caf50]-> health_auto
+
+select_backup -[#4caf50]-> update_symlink_manual
+update_symlink_manual -[#4caf50]-> restart_manual
+restart_manual -[#4caf50]-> health_manual
+
+testing -up-> auto : Validates
+testing -up-> manual : Validates
+
+note bottom of auto
+  <b>Automatic Rollback</b>
+  Triggered when deployment health check fails
+  Reverts to last known good version
+  Restarts Java service with previous version
+end note
+
+note bottom of manual
+  <b>Manual Rollback</b>
+  Triggered by user from GitLab interface
+  Allows selection of specific version
+  Useful for controlled rollbacks
+end note
+
+note bottom of testing
+  <b>Comprehensive Testing</b>
+  Ensures rollback functionality works correctly
+  Tests with the exact same files used in production
+  "The files we want to ship are the files under test"
+end note
+
+@enduml

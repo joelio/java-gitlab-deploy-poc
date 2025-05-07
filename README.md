@@ -1,12 +1,119 @@
 # Java Application Deployment Pipeline
 
-A modular, multi-environment GitLab CI/CD pipeline for Java application deployment with automated rollback capabilities.
+A modular, multi-environment GitLab CI/CD pipeline specifically designed for Java application deployment with automated rollback capabilities.
 
-![Java Pipeline Overview](diagrams/Pipeline_Overview.png)
+![Java Pipeline Overview](diagrams/generated/java_pipeline_overview.png)
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Quick Start Guide](#quick-start-guide)
+- [Pipeline Structure](#pipeline-structure)
+- [Environment Support](#environment-support)
+- [Features](#features)
+- [Rollback Mechanism](#rollback-mechanism)
+- [SSH Authentication](#ssh-authentication)
+- [Java Application Support](#java-application-support)
+- [Multi-Server Deployment](#multi-server-deployment)
+- [Auto-Promotion Prevention](#auto-promotion-prevention)
+- [Testing Framework](#testing-framework)
+- [Advanced Enhancements](#advanced-enhancements)
+- [Adapting for Other Application Types](#adapting-for-other-application-types)
+- [Deployment Process](#deployment-process)
 
 ## Overview
 
 This repository contains a GitLab CI/CD configuration specifically designed for deploying Java applications to multiple environments (test, staging, production) with comprehensive deployment, rollback, and notification capabilities. The pipeline is designed to be modular, maintainable, and follows GitLab CI/CD best practices for Java applications deployed as systemd services.
+
+## Quick Start Guide
+
+This section will help you quickly set up the GitLab CI/CD pipeline for your Java application.
+
+### Basic Setup (5 minutes)
+
+1. **Copy the Files**: Copy the `.gitlab-ci.yml` and `ci/` directory to your Java project root.
+
+2. **Update Essential Variables**: Edit `ci/variables.yml` and update these key variables:
+   ```yaml
+   variables:
+     # Application name (used for deployment directories and service names)
+     APP_NAME: "your-java-app"
+     
+     # Deployment server hostname or IP address
+     DEPLOY_HOST: "your-server.example.com"
+     
+     # User account on deployment servers
+     APP_USER: "your-app-user"
+     
+     # Email for notifications
+     NOTIFICATION_EMAIL: "your-team@example.com"
+   ```
+
+3. **Commit and Push**: Commit these changes and push to your GitLab repository.
+
+4. **Run the Pipeline**: Go to CI/CD > Pipelines in GitLab and run your first pipeline.
+
+That's it! Your Java application will be built and deployed using the pipeline.
+
+### Common Java Customizations
+
+#### Maven Repository Configuration
+
+The internal Maven Wrapper is configured to use a local repository within the project:
+
+```yaml
+variables:
+  MAVEN_OPTS: "-Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository"
+```
+
+#### Maven Wrapper Build Options
+
+The pipeline uses an internal Maven Wrapper component for consistent builds. Make sure the Maven Wrapper script has the correct permissions in your repository:
+
+```bash
+git update-index --chmod=+x mvnw
+```
+
+Default (skip tests):
+```yaml
+BUILD_COMMAND: "$CI_PROJECT_DIR/mvnw package -DskipTests"
+```
+
+With tests:
+```yaml
+BUILD_COMMAND: "$CI_PROJECT_DIR/mvnw package"
+```
+
+With specific profile:
+```yaml
+BUILD_COMMAND: "$CI_PROJECT_DIR/mvnw package -P production -DskipTests"
+```
+
+#### Java Runtime Options
+
+Default:
+```yaml
+RUNTIME_OPTS: "-Xmx512m -Xms256m"
+```
+
+For larger applications:
+```yaml
+RUNTIME_OPTS: "-Xmx2g -Xms1g -XX:+UseG1GC"
+```
+
+With system properties:
+```yaml
+RUNTIME_OPTS: "-Xmx512m -Dspring.profiles.active=${CI_ENVIRONMENT_NAME} -Dserver.port=8080"
+```
+
+#### JDK Version
+
+```yaml
+# In .gitlab-ci.yml, update the build job:
+build:
+  extends: .build_template
+  image: $BUILDER_IMAGE_JAVA_21  # Reference your internal builder image
+```
 
 ## Pipeline Structure
 
@@ -18,7 +125,7 @@ The CI/CD pipeline is organized into the following stages:
 4. **Notify**: Sends notifications about deployment success/failure
 5. **Rollback**: Handles automatic and manual rollbacks if needed
 
-![Deployment Process](diagrams/Deployment_Process.png)
+![Deployment Process](diagrams/generated/java_deployment_process.png)
 
 *The diagram above illustrates the Java application deployment process, from preparation through validation.*
 
@@ -40,7 +147,7 @@ The CI/CD pipeline is organized into the following stages:
 
 The pipeline supports three environments with multi-server deployment capabilities:
 
-![Environment Workflow](diagrams/Environment_Workflow.png)
+![Environment Workflow](diagrams/generated/java_environment_workflow.png)
 
 *The diagram above shows how Git branches map to deployment environments with appropriate controls.*
 
@@ -83,7 +190,7 @@ The pipeline supports three environments with multi-server deployment capabiliti
 
 The pipeline includes both automatic and manual rollback capabilities:
 
-![Rollback Strategy](diagrams/Rollback_Strategy.png)
+![Rollback Strategy](diagrams/generated/java_rollback_strategy.png)
 
 *The diagram above illustrates the automatic and manual rollback strategies with comprehensive testing.*
 
@@ -147,7 +254,7 @@ variables:
 
 The deployment process is optimized for Java applications:
 
-![Deployment Process](diagrams/Deployment_Process_Clean.png)
+![Deployment Process](diagrams/generated/java_deployment_process.png)
 
 *The diagram above shows the detailed steps in the Java application deployment process.*
 
@@ -196,6 +303,313 @@ To ensure controlled deployments and comply with the May 2025 GitLab protected b
 ```yaml
 variables:
   AUTO_PROMOTION: "false"  # Prevents automatic promotion between environments
+```
+
+## Testing Framework
+
+Our comprehensive testing framework ensures that the pipeline works correctly in all scenarios:
+
+![Rollback Strategy Testing](diagrams/generated/java_rollback_strategy.png)
+
+*The diagram above illustrates the comprehensive testing of deployment and rollback functionality.*
+
+### Testing Philosophy
+
+Our testing philosophy is built on a fundamental principle:
+
+> "The files we want to ship are the files under test, with no divergence from that end state."
+
+This means we use the exact same CI files in both production and testing environments, ensuring complete consistency.
+
+### Quick Start
+
+To run all tests in sequence:
+
+```bash
+./tests/run_all_tests.sh
+```
+
+This will execute all tests from basic to comprehensive, providing clear feedback on each test's success or failure.
+
+### Test Suite Components
+
+| Test Type | Command | Purpose |
+|-----------|---------|----------|
+| Basic Structure | `./tests/test_pipeline.sh` | Validates pipeline structure and job dependencies |
+| GitLab CI Local | `./tests/gitlab_ci_local_comprehensive.sh` | Tests all pipeline actions using gitlab-ci-local |
+| Systemd Service | `./tests/test_systemd_rollback.sh` | Tests systemd service handling and rollback |
+| Comprehensive | `./tests/comprehensive_pipeline_test.sh` | Full validation including edge cases and multi-server deployments |
+
+### What Gets Tested
+
+Our comprehensive test suite validates:
+
+1. **Build and Deployment**
+   - Artifact creation and packaging
+   - Deployment to target environments
+   - Directory structure creation
+   - Symlink management
+
+2. **Systemd Service Handling**
+   - Service file creation
+   - Service lifecycle (enable, start, stop)
+   - Service status verification
+
+3. **Rollback Functionality**
+   - Manual rollback capability
+   - Automatic rollback on failure
+   - Rollback to specific versions
+
+4. **Multi-Server Deployments**
+   - Sequential deployment to multiple servers
+   - Health check validation on each server
+   - Rollback across multiple servers
+
+5. **Edge Cases**
+   - Handling of missing directories
+   - Recovery from failed deployments
+   - Behavior with invalid configurations
+
+## Advanced Enhancements
+
+This section provides optional enhancements for the Java deployment pipeline. These are modular additions you can implement when your team is ready for more advanced features.
+
+### Security Scanning
+
+Add basic security scanning for Java dependencies:
+
+1. Create a new file `ci/security.yml`:
+```yaml
+# Java-specific security scanning
+dependency_check:
+  stage: security
+  image: owasp/dependency-check:latest
+  script:
+    - /usr/share/dependency-check/bin/dependency-check.sh --scan . --format "ALL" --project "${APP_NAME}" --out "reports"
+  artifacts:
+    paths:
+      - reports/
+  allow_failure: true
+  when: manual
+```
+
+2. Include it in your `.gitlab-ci.yml`:
+```yaml
+include:
+  - local: '/ci/variables.yml'
+  - local: '/ci/functions.yml'
+  - local: '/ci/build.yml'
+  - local: '/ci/deploy.yml'
+  - local: '/ci/rollback.yml'
+  - local: '/ci/notify.yml'
+  - local: '/ci/security.yml'  # Add this line
+```
+
+### Java Code Quality
+
+Add SonarQube analysis for Java code quality:
+
+1. Create a new file `ci/quality.yml`:
+```yaml
+sonarqube:
+  stage: quality
+  image: $BUILDER_IMAGE_JAVA_21
+  variables:
+    SONAR_HOST_URL: "https://sonar.example.com"
+    SONAR_TOKEN: ${SONAR_API_TOKEN}
+  script:
+    - $CI_PROJECT_DIR/mvnw sonar:sonar -Dsonar.projectKey=${APP_NAME} -Dsonar.host.url=${SONAR_HOST_URL} -Dsonar.login=${SONAR_TOKEN}
+  allow_failure: true
+  when: manual
+```
+
+2. Add the quality stage to your `.gitlab-ci.yml`:
+```yaml
+stages:
+  - validate
+  - security
+  - quality  # Add this line
+  - build
+  - deploy
+  - notify
+  - rollback
+```
+
+### Java Performance Testing
+
+Add JMeter performance testing for your Java application:
+
+1. Create a new file `ci/performance.yml`:
+```yaml
+performance_test:
+  stage: test
+  image: justb4/jmeter:5.4
+  script:
+    - jmeter -n -t performance/test-plan.jmx -l results.jtl -e -o report
+  artifacts:
+    paths:
+      - report/
+  allow_failure: true
+  when: manual
+```
+
+2. Add a JMeter test plan in your repository at `performance/test-plan.jmx`
+
+### Database Migration Support
+
+Add support for database migrations during deployment:
+
+1. Update `ci/functions.yml` with a new function:
+```yaml
+function perform_db_migration() {
+  log "INFO" "Running database migration"
+  
+  if is_test_mode; then
+    log "TEST" "Would execute database migration"
+    return 0
+  fi
+  
+  # For Flyway using Maven Wrapper
+  ssh_cmd "cd ${CURRENT_LINK} && ./mvnw flyway:migrate -Dflyway.url=${DB_URL} -Dflyway.user=${DB_USER} -Dflyway.password=${DB_PASSWORD}"
+  
+  # For Liquibase using Maven Wrapper
+  # ssh_cmd "cd ${CURRENT_LINK} && ./mvnw liquibase:update -Dliquibase.url=${DB_URL} -Dliquibase.username=${DB_USER} -Dliquibase.password=${DB_PASSWORD}"
+  
+  return $?
+}
+```
+
+2. Update the deployment process in `ci/deploy.yml` to include database migration:
+```yaml
+echo "=== STEP 8: Running database migration ==="
+perform_db_migration || { echo "Failed to run database migration"; return 1; }
+```
+
+### Multi-JVM Support
+
+Add support for deploying to different JVM versions:
+
+1. Update `ci/variables.yml` with JVM options:
+```yaml
+variables:
+  # JVM options
+  JVM_VERSION: "java-17-openjdk"
+  JVM_OPTS_TEST: "-Xmx512m -XX:+UseG1GC"
+  JVM_OPTS_STAGING: "-Xmx1g -XX:+UseG1GC"
+  JVM_OPTS_PRODUCTION: "-Xmx2g -Xms1g -XX:+UseG1GC -XX:+HeapDumpOnOutOfMemoryError"
+```
+
+2. Update the systemd service template in `ci/functions.yml` to use the JVM version:
+```yaml
+function create_systemd_service() {
+  # Use the JVM_VERSION variable
+  local java_home="/usr/lib/jvm/${JVM_VERSION}"
+  
+  # Create service file with JAVA_HOME set
+  echo -e "[Unit]\nDescription=${APP_NAME} Application\nAfter=network.target\n\n[Service]\nType=simple\nUser=${APP_USER}\nWorkingDirectory=${WORKING_DIRECTORY}\nEnvironment=\"JAVA_HOME=${java_home}\"\nExecStart=${START_COMMAND}\n${env_vars}SuccessExitStatus=143\nTimeoutStopSec=10\nRestart=on-failure\nRestartSec=5\n\n[Install]\nWantedBy=default.target" > ${APP_NAME}.service
+}
+```
+
+## Adapting for Other Application Types
+
+While this GitLab CI/CD pipeline is optimized for Java applications, it can be adapted for other application types with some modifications.
+
+### General Adaptation Principles
+
+1. **Keep the Modular Structure**: Maintain the separation of concerns with modular components
+2. **Customize Build Process**: Modify the build commands for your specific runtime
+3. **Adjust Artifact Handling**: Update artifact paths and patterns for your application type
+4. **Configure Service**: Adapt the systemd service configuration for your runtime
+5. **Update Health Checks**: Modify health check URLs and validation methods
+
+### Configuration Variables to Modify
+
+For any application type, you'll need to modify these key variables in `ci/variables.yml`:
+
+```yaml
+variables:
+  # Application details
+  APP_NAME: "your-application"
+  APP_VERSION: "1.0.0"
+  
+  # Build configuration
+  BUILD_COMMAND: "your-build-command"  # Modify this for your build system
+  
+  # Artifact settings
+  ARTIFACT_PATH: "path/to/your/artifact"  # Modify for your build output
+  ARTIFACT_NAME: "your-artifact-name"  # The name when deployed
+  
+  # Runtime configuration
+  RUNTIME_PATH: "/path/to/runtime"  # Path to your runtime executable
+  RUNTIME_OPTS: "runtime-options"  # Runtime-specific options
+  
+  # Service configuration
+  START_COMMAND: "command-to-start-your-application"
+  WORKING_DIRECTORY: "/path/to/app/directory"
+  SERVICE_ENV_VARS: "ENV_VAR1=value1,ENV_VAR2=value2"
+```
+
+### Example: Node.js Applications
+
+```yaml
+variables:
+  # Build configuration
+  BUILD_COMMAND: "npm ci && npm run build"
+  
+  # Artifact settings
+  ARTIFACT_PATH: "dist/"
+  ARTIFACT_NAME: "dist"
+  
+  # Runtime configuration
+  RUNTIME_PATH: "/usr/bin/node"
+  RUNTIME_OPTS: "--max-old-space-size=512"
+  
+  # Service configuration
+  START_COMMAND: "/usr/bin/node /opt/app/current/server.js"
+  WORKING_DIRECTORY: "/opt/app/current"
+  SERVICE_ENV_VARS: "NODE_ENV=${CI_ENVIRONMENT_NAME},PORT=3000"
+```
+
+### Example: Python Applications
+
+```yaml
+variables:
+  # Build configuration
+  BUILD_COMMAND: "python -m pip install -r requirements.txt"
+  
+  # Artifact settings
+  ARTIFACT_PATH: "."
+  ARTIFACT_NAME: "app"
+  
+  # Runtime configuration
+  RUNTIME_PATH: "/usr/bin/python3"
+  RUNTIME_OPTS: "-u"
+  
+  # Service configuration
+  START_COMMAND: "/opt/app/current/venv/bin/python /opt/app/current/app.py"
+  WORKING_DIRECTORY: "/opt/app/current"
+  SERVICE_ENV_VARS: "PYTHONUNBUFFERED=1,FLASK_ENV=${CI_ENVIRONMENT_NAME}"
+```
+
+### Example: .NET Applications
+
+```yaml
+variables:
+  # Build configuration
+  BUILD_COMMAND: "dotnet publish -c Release -o ./publish"
+  
+  # Artifact settings
+  ARTIFACT_PATH: "publish/"
+  ARTIFACT_NAME: "publish"
+  
+  # Runtime configuration
+  RUNTIME_PATH: "/usr/bin/dotnet"
+  RUNTIME_OPTS: "--configuration Release"
+  
+  # Service configuration
+  START_COMMAND: "/usr/bin/dotnet /opt/app/current/YourApp.dll"
+  WORKING_DIRECTORY: "/opt/app/current"
+  SERVICE_ENV_VARS: "ASPNETCORE_ENVIRONMENT=${CI_ENVIRONMENT_NAME},DOTNET_PRINT_TELEMETRY_MESSAGE=false"
 ```
 
 ## Deployment Process
@@ -266,12 +680,117 @@ See the [tests/README.md](tests/README.md) for detailed information about the te
 
 ## Troubleshooting
 
-If deployments fail:
+### Common Issues and Solutions
 
-1. Check the job logs for specific error messages
-2. Verify SSH connectivity to the deployment server
-3. Ensure the health check endpoint is properly configured
-4. Check systemd service logs on the deployment server
+| Problem | Symptoms | Solution |
+|---------|----------|----------|
+| **YAML Parsing Errors** | Pipeline fails with `found character that cannot start any token` or similar | • Check indentation in YAML files, especially in `functions.yml`<br>• Ensure shell functions are properly indented within YAML structure<br>• Validate YAML with `gitlab-ci-lint` |
+| **Job Dependency Errors** | Pipeline fails with `job not found` or `needs not defined` | • Verify job names match between dependencies<br>• Check that all referenced jobs exist in the pipeline<br>• Ensure job names are consistent across all files |
+| **Systemd Container Issues** | Service fails to start in container with `Failed to connect to bus` | • Ensure container has privileged access<br>• Mount `/sys/fs/cgroup` correctly<br>• Run container with `/sbin/init` as PID 1 |
+| **Java Application Errors** | Application fails to start with `OutOfMemoryError` | • Check JVM memory settings in `RUNTIME_OPTS`<br>• Verify Java version compatibility<br>• Ensure proper Spring profiles are activated |
+| **SSH Authentication Failures** | Deployment fails with `Permission denied (publickey)` | • Verify SSH keys are correctly configured<br>• Check `APP_USER` has proper permissions<br>• Ensure `known_hosts` is properly configured |
+| **Health Check Failures** | Deployment completes but health check fails | • Verify application is actually running<br>• Check `HEALTH_CHECK_URL` is correct<br>• Increase `HEALTH_CHECK_RETRIES` and `HEALTH_CHECK_DELAY` |
+
+### Specific Error Messages and Solutions
+
+#### "No matching files found" during artifact collection
+
+**Problem:** Build job succeeds but artifacts aren't collected
+
+**Solution:**
+```yaml
+# Check your artifact path configuration
+variables:
+  ARTIFACT_PATH: "target/*.jar"  # Make sure this matches your build output
+```
+
+#### "java.lang.ClassNotFoundException" in service logs
+
+**Problem:** Service starts but immediately fails with class not found
+
+**Solution:**
+1. Check your `START_COMMAND` includes the correct classpath
+2. Verify all dependencies are included in your JAR (use `jar -tf your-app.jar`)
+3. Update your service file to include any external dependencies:
+```yaml
+function create_systemd_service() {
+  # Add classpath to the service file
+  echo -e "[Unit]\nDescription=${APP_NAME} Application\nAfter=network.target\n\n[Service]\nType=simple\nUser=${APP_USER}\nWorkingDirectory=${WORKING_DIRECTORY}\nExecStart=${JAVA_HOME}/bin/java -cp ${WORKING_DIRECTORY}/*:${WORKING_DIRECTORY}/lib/* ${MAIN_CLASS}\n${env_vars}SuccessExitStatus=143\nTimeoutStopSec=10\nRestart=on-failure\nRestartSec=5\n\n[Install]\nWantedBy=default.target" > ${APP_NAME}.service
+}
+```
+
+### Debugging Tools and Techniques
+
+#### Enable Debug Logging
+
+Add to your `ci/variables.yml`:
+```yaml
+variables:
+  DEBUG: "true"
+```
+
+#### Use Test Mode for Dry Runs
+
+Add to your `ci/variables.yml`:
+```yaml
+variables:
+  CI_TEST_MODE: "true"
+```
+
+#### Check Service Logs
+
+```bash
+# View service logs
+journalctl --user-unit=your-app-name
+
+# Follow logs in real-time
+journalctl --user-unit=your-app-name -f
+
+# View only errors
+journalctl --user-unit=your-app-name -p err
+```
+
+#### Verify Deployment Structure
+
+```bash
+# Check symlinks
+ls -la /opt/app/your-app/current
+
+# Verify service file
+cat ~/.config/systemd/user/your-app.service
+
+# Check deployment history
+ls -la /opt/app/your-app/deployments/
+```
+
+#### Diagnostic Script
+
+Create a diagnostic script in your repository at `scripts/diagnose.sh`:
+
+```bash
+#!/bin/bash
+
+APP_NAME="your-app-name"
+DEPLOY_DIR="/opt/app/${APP_NAME}"
+
+echo "=== Deployment Diagnostics ==="
+echo "Checking service status..."
+systemctl --user status ${APP_NAME}.service
+
+echo "\nChecking deployment structure..."
+ls -la ${DEPLOY_DIR}/current
+
+echo "\nChecking recent logs..."
+journalctl --user-unit=${APP_NAME} -n 20
+
+echo "\nChecking disk space..."
+df -h ${DEPLOY_DIR}
+
+echo "\nChecking Java version..."
+java -version
+
+echo "\nDiagnostics complete."
+```
 
 ## Licence
 

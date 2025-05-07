@@ -1,0 +1,105 @@
+@startuml Java Environment Workflow
+!theme cerulean
+skinparam backgroundColor white
+skinparam defaultTextAlignment center
+
+<style>
+rectangleContainer {
+  FontColor #2c3e50
+  FontSize 14
+  FontStyle bold
+}
+</style>
+
+title Java Application Environment Workflow
+
+skinparam rectangle {
+  BackgroundColor #f5f5f5
+  BorderColor #2c3e50
+  FontColor #2c3e50
+  BorderThickness 1
+  Shadowing false
+  RoundCorner 10
+}
+
+skinparam arrow {
+  Color #3498db
+  Thickness 1.5
+}
+
+skinparam note {
+  BackgroundColor #f8f9fa
+  BorderColor #dee2e6
+  FontColor #495057
+  BorderThickness 1
+}
+
+rectangle "Git Branches" as branches {
+  rectangle "feature/*" as feature #e3f2fd
+  rectangle "develop" as develop #bbdefb
+  rectangle "release/*" as release #90caf9
+  rectangle "main/master" as main #64b5f6
+}
+
+rectangle "CI/CD Pipeline" as pipeline {
+  rectangle "Build Java App" as build #e1f5fe
+  rectangle "Run Tests" as test #b3e5fc
+  rectangle "Deploy JAR" as deploy #81d4fa
+  rectangle "Configure Systemd" as systemd #4fc3f7
+}
+
+rectangle "Environments" as envs {
+  rectangle "Test" as test_env #e0f7fa {
+    rectangle "Single Server" as test_server #b2ebf2
+    rectangle "JVM: -Xmx512m" as test_jvm #80deea
+  }
+  
+  rectangle "Staging" as staging #b2ebf2 {
+    rectangle "Multiple Servers" as staging_servers #80deea
+    rectangle "JVM: -Xmx1g" as staging_jvm #4dd0e1
+  }
+  
+  rectangle "Production" as prod #80deea {
+    rectangle "Multiple Servers" as prod_servers #4dd0e1
+    rectangle "JVM: -Xmx2g" as prod_jvm #26c6da
+  }
+}
+
+' Branch to environment connections
+feature -[#3498db]-> test_env : Manual
+develop -[#3498db]-> test_env : Auto
+develop -[#3498db]-> staging : Manual
+release -[#3498db]-> staging : Manual
+main -[#3498db]-> prod : Manual
+
+' Pipeline to environment connections
+pipeline -[#3498db]-> test_env
+pipeline -[#3498db]-> staging
+pipeline -[#3498db]-> prod
+
+note bottom of test_env
+  <b>Test Environment</b>
+  • Single server deployment
+  • Basic validation
+  • Spring profile: test
+  • Email notifications
+end note
+
+note bottom of staging
+  <b>Staging Environment</b>
+  • Multi-server deployment
+  • Extended validation
+  • Spring profile: staging
+  • Pre-production testing
+end note
+
+note bottom of prod
+  <b>Production Environment</b>
+  • Multi-server deployment
+  • Full validation suite
+  • Spring profile: production
+  • Notification Service
+  • Auto-rollback capability
+end note
+
+@enduml
