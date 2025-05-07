@@ -2,7 +2,7 @@
 
 This guide will help you quickly set up a GitLab CI/CD pipeline specifically designed for Java applications deployed as systemd services.
 
-![Pipeline Overview](diagrams/pipeline_overview_improved.png)
+![Pipeline Overview](diagrams/Pipeline_Overview_Improved.png)
 
 *Figure 1: Overview of the Java Deployment Pipeline stages*
 
@@ -105,7 +105,7 @@ variables:
 
 The pipeline already supports test, staging, and production environments. Just update the server details in `ci/variables.yml`:
 
-![Environment Workflow](diagrams/environment_workflow_improved.png)
+![Environment Workflow](diagrams/Environment_Workflow_Improved.png)
 
 *Figure 2: Environment promotion workflow across branches*
 
@@ -161,7 +161,7 @@ HEALTH_CHECK_URL: "http://localhost:8080/api/health"
 
 ## Testing Your Pipeline
 
-![Rollback Strategy](diagrams/Rollback%20Strategy.png)
+![Rollback Strategy](diagrams/Rollback_Strategy.png)
 
 *Figure 3: Comprehensive testing of rollback functionality*
 

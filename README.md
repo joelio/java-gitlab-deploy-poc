@@ -2,6 +2,8 @@
 
 A modular, multi-environment GitLab CI/CD pipeline for Java application deployment with automated rollback capabilities.
 
+![Java Pipeline Overview](diagrams/Pipeline_Overview.png)
+
 ## Overview
 
 This repository contains a GitLab CI/CD configuration specifically designed for deploying Java applications to multiple environments (test, staging, production) with comprehensive deployment, rollback, and notification capabilities. The pipeline is designed to be modular, maintainable, and follows GitLab CI/CD best practices for Java applications deployed as systemd services.
@@ -15,6 +17,10 @@ The CI/CD pipeline is organized into the following stages:
 3. **Deploy**: Deploys the application to the target environment
 4. **Notify**: Sends notifications about deployment success/failure
 5. **Rollback**: Handles automatic and manual rollbacks if needed
+
+![Deployment Process](diagrams/Deployment_Process.png)
+
+*The diagram above illustrates the Java application deployment process, from preparation through validation.*
 
 ## Directory Structure
 
@@ -33,6 +39,10 @@ The CI/CD pipeline is organized into the following stages:
 ## Environment Support
 
 The pipeline supports three environments with multi-server deployment capabilities:
+
+![Environment Workflow](diagrams/Environment_Workflow.png)
+
+*The diagram above shows how Git branches map to deployment environments with appropriate controls.*
 
 1. **Test**
    - Single server deployment: `test-server.example.com`
@@ -68,6 +78,25 @@ The pipeline supports three environments with multi-server deployment capabiliti
 - **Health Checks**: Validates deployment success with configurable retries
 - **Notifications**: Flexible notification system supporting email and Notification Service
 - **Detailed Logging**: Comprehensive logging with timestamps and log levels
+
+## Rollback Mechanism
+
+The pipeline includes both automatic and manual rollback capabilities:
+
+![Rollback Strategy](diagrams/Rollback_Strategy.png)
+
+*The diagram above illustrates the automatic and manual rollback strategies with comprehensive testing.*
+
+- **Automatic Rollback**: Triggered when deployment health checks fail
+- **Manual Rollback**: Can be triggered manually for any environment
+
+Rollbacks follow a consistent process:
+
+1. Identify the appropriate rollback target (last successful deployment or latest backup)
+2. Stop the current service
+3. Update the symlink to point to the rollback target
+4. Start the service
+5. Perform health checks to verify the rollback was successful
 
 ## SSH Authentication
 
@@ -117,6 +146,10 @@ variables:
 ### Java Deployment Process
 
 The deployment process is optimized for Java applications:
+
+![Deployment Process](diagrams/Deployment_Process_Clean.png)
+
+*The diagram above shows the detailed steps in the Java application deployment process.*
 
 1. **Build**: Executes Maven or Gradle to build the Java application
 2. **Artifact Collection**: Collects the JAR file(s) from the target directory

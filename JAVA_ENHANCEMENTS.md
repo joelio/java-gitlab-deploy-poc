@@ -2,7 +2,7 @@
 
 This guide provides optional enhancements for the Java deployment pipeline. These are modular additions you can implement when your team is ready for more advanced features.
 
-![Deployment Process](diagrams/deployment_process_clean.png)
+![Deployment Process](diagrams/Deployment_Process_Clean.png)
 
 *Figure 1: Detailed Java application deployment process flow*
 
@@ -136,7 +136,7 @@ build_all_jdks:
 
 Add support for database migrations during deployment:
 
-![Rollback Strategy](diagrams/rollback_strategy_improved.png)
+![Rollback Strategy](diagrams/Rollback_Strategy_Improved.png)
 
 *Figure 2: Automatic and manual rollback strategies*
 
@@ -195,7 +195,7 @@ pages:
 
 Enhance your pipeline with a comprehensive testing framework that validates all aspects of your deployment process:
 
-![Rollback Strategy Testing](diagrams/Rollback%20Strategy.png)
+![Rollback Strategy Testing](diagrams/Rollback_Strategy.png)
 
 *Figure 3: Comprehensive testing of deployment and rollback functionality*
 

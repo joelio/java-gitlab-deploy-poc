@@ -1,6 +1,8 @@
 # Testing the GitLab CI/CD Pipeline
 
-![Rollback Strategy](diagrams/Rollback%20Strategy.png)
+![Rollback Strategy](diagrams/Rollback_Strategy.png)
+
+*Comprehensive testing of rollback functionality*
 
 ## Overview
 
