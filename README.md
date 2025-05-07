@@ -2,7 +2,7 @@
 
 A modular, multi-environment GitLab CI/CD pipeline specifically designed for Java application deployment with automated rollback capabilities.
 
-![Java Pipeline Overview](diagrams/java_pipeline_overview.png)
+![Java Pipeline Overview](diagrams/Java_Pipeline_Overview.png)
 
 ## Table of Contents
 
@@ -125,7 +125,7 @@ The CI/CD pipeline is organized into the following stages:
 4. **Notify**: Sends notifications about deployment success/failure
 5. **Rollback**: Handles automatic and manual rollbacks if needed
 
-![Deployment Process](diagrams/java_deployment_process.png)
+![Deployment Process](diagrams/Java_Deployment_Process.png)
 
 *The diagram above illustrates the Java application deployment process, from preparation through validation.*
 
@@ -147,7 +147,7 @@ The CI/CD pipeline is organized into the following stages:
 
 The pipeline supports three environments with multi-server deployment capabilities:
 
-![Environment Workflow](diagrams/java_environment_workflow.png)
+![Environment Workflow](diagrams/Java_Environment_Workflow.png)
 
 *The diagram above shows how Git branches map to deployment environments with appropriate controls.*
 
@@ -190,7 +190,7 @@ The pipeline supports three environments with multi-server deployment capabiliti
 
 The pipeline includes both automatic and manual rollback capabilities:
 
-![Rollback Strategy](diagrams/java_rollback_strategy.png)
+![Rollback Strategy](diagrams/Java_Rollback_Strategy.png)
 
 *The diagram above illustrates the automatic and manual rollback strategies with comprehensive testing.*
 
@@ -254,7 +254,7 @@ variables:
 
 The deployment process is optimized for Java applications:
 
-![Deployment Process](diagrams/java_deployment_process.png)
+![Deployment Process](diagrams/Java_Deployment_Process.png)
 
 *The diagram above shows the detailed steps in the Java application deployment process.*
 
@@ -309,7 +309,7 @@ variables:
 
 Our comprehensive testing framework ensures that the pipeline works correctly in all scenarios:
 
-![Rollback Strategy Testing](diagrams/java_rollback_strategy.png)
+![Rollback Strategy Testing](diagrams/Java_Rollback_Strategy.png)
 
 *The diagram above illustrates the comprehensive testing of deployment and rollback functionality.*
 
