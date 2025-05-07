@@ -119,15 +119,23 @@ build:
 
 The CI/CD pipeline is organized into the following stages:
 
-1. **Validate**: Ensures deployments only occur from protected branches
-2. **Build**: Compiles and packages the Java application
-3. **Deploy**: Deploys the application to the target environment
-4. **Notify**: Sends notifications about deployment success/failure
-5. **Rollback**: Handles automatic and manual rollbacks if needed
+| Stage | Purpose | Key Features |
+|-------|---------|-------------|
+| **Validate** | Ensures deployments only occur from protected branches | • Branch protection rules<br>• Auto-promotion prevention<br>• Environment validation |
+| **Build** | Compiles and packages the Java application | • Maven/Gradle support<br>• Artifact collection<br>• Dependency caching |
+| **Deploy** | Deploys the application to the target environment | • Multi-server support<br>• Systemd service creation<br>• Health checks |
+| **Notify** | Sends notifications about deployment status | • Email notifications<br>• Notification Service integration<br>• Detailed status reports |
+| **Rollback** | Handles automatic and manual rollbacks if needed | • Automatic failure detection<br>• Version history management<br>• One-click manual rollback |
+
+![Java Pipeline Overview](diagrams/Java_Pipeline_Overview.png)
+
+*The diagram above illustrates the Java application deployment pipeline stages and their relationships.*
+
+### Deployment Process Visualization
 
 ![Deployment Process](diagrams/Java_Deployment_Process.png)
 
-*The diagram above illustrates the Java application deployment process, from preparation through validation.*
+*The diagram above illustrates the Java application deployment process, from preparation through validation. It shows the step-by-step flow of how Java artifacts are deployed to target environments.*
 
 ## Directory Structure
 
@@ -147,9 +155,11 @@ The CI/CD pipeline is organized into the following stages:
 
 The pipeline supports three environments with multi-server deployment capabilities:
 
+### Environment Workflow Visualization
+
 ![Environment Workflow](diagrams/Java_Environment_Workflow.png)
 
-*The diagram above shows how Git branches map to deployment environments with appropriate controls.*
+*The diagram above shows how Git branches map to deployment environments with appropriate controls. It illustrates the flow from development through test, staging, and production environments.*
 
 1. **Test**
    - Single server deployment: `test-server.example.com`
@@ -190,9 +200,11 @@ The pipeline supports three environments with multi-server deployment capabiliti
 
 The pipeline includes both automatic and manual rollback capabilities:
 
+### Rollback Strategy Visualization
+
 ![Rollback Strategy](diagrams/Java_Rollback_Strategy.png)
 
-*The diagram above illustrates the automatic and manual rollback strategies with comprehensive testing.*
+*The diagram above illustrates the automatic and manual rollback strategies with comprehensive testing. It shows how the system detects deployment failures and initiates rollbacks to maintain service availability.*
 
 - **Automatic Rollback**: Triggered when deployment health checks fail
 - **Manual Rollback**: Can be triggered manually for any environment
@@ -309,9 +321,11 @@ variables:
 
 Our comprehensive testing framework ensures that the pipeline works correctly in all scenarios:
 
+### Testing Framework Visualization
+
 ![Rollback Strategy Testing](diagrams/Java_Rollback_Strategy.png)
 
-*The diagram above illustrates the comprehensive testing of deployment and rollback functionality.*
+*The diagram above illustrates the comprehensive testing of deployment and rollback functionality. It shows how the testing framework validates all aspects of the pipeline.*
 
 ### Testing Philosophy
 
