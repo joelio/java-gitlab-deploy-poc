@@ -4,11 +4,9 @@
 
 ## Overview
 
-This directory contains a comprehensive testing framework for the GitLab CI/CD pipeline blueprint. Our testing philosophy is built on a fundamental principle:
+This directory contains a comprehensive testing framework for the GitLab CI/CD pipeline blueprint. Our testing philosophy emphasizes consistency and reliability.
 
-> "The files we want to ship are the files under test, with no divergence from that end state."
-
-This means we use the exact same CI files in both production and testing environments, ensuring complete consistency between what we test and what users receive.
+We use the exact same CI files in both production and testing environments, ensuring complete consistency between what we test and what users receive.
 
 ## Prerequisites
 
@@ -118,8 +116,7 @@ This script will:
 3. Provide clear feedback on test results
 4. Ensure all aspects of the pipeline are tested
 
-The test driver follows our core testing principle:
-> "The files we want to ship are the files under test, with no divergence from that end state."
+The test driver follows our core testing principle of ensuring consistency between test and production environments.
 
 ## Troubleshooting
 
