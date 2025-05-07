@@ -1,6 +1,6 @@
 # Java Deployment Pipeline: Quick Start Guide
 
-This guide will help you quickly set up a GitLab CI/CD pipeline for Java applications using systemd services.
+This guide will help you quickly set up a GitLab CI/CD pipeline specifically designed for Java applications deployed as systemd services.
 
 ![Pipeline Overview](diagrams/pipeline_overview_improved.png)
 

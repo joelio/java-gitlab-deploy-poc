@@ -4,7 +4,7 @@ A modular, multi-environment GitLab CI/CD pipeline for Java application deployme
 
 ## Overview
 
-This repository contains a GitLab CI/CD configuration for deploying a Java application to multiple environments (test, staging, production) with comprehensive deployment, rollback, and notification capabilities. The pipeline is designed to be modular, maintainable, and follows GitLab CI/CD best practices.
+This repository contains a GitLab CI/CD configuration specifically designed for deploying Java applications to multiple environments (test, staging, production) with comprehensive deployment, rollback, and notification capabilities. The pipeline is designed to be modular, maintainable, and follows GitLab CI/CD best practices for Java applications deployed as systemd services.
 
 ## Pipeline Structure
 
@@ -56,7 +56,7 @@ The pipeline supports three environments with multi-server deployment capabiliti
 ## Features
 
 - **Modular Design**: Pipeline components are separated into reusable, maintainable files
-- **Multi-Runtime Support**: Deploy Java, .NET, Node.js, and other application types
+- **Java-Specific Configuration**: Optimized for Java applications with Maven/Gradle support
 - **Multi-Environment Support**: Configured for test, staging, and production environments
 - **Multi-Server Deployment**: Deploy to multiple servers within an environment
 - **Auto-Promotion Prevention**: Ensure deployments are manually triggered between environments
@@ -67,7 +67,6 @@ The pipeline supports three environments with multi-server deployment capabiliti
 - **Deployment Retention**: Configurable number of deployments to retain
 - **Health Checks**: Validates deployment success with configurable retries
 - **Notifications**: Flexible notification system supporting email and Notification Service
-- **Test Mode**: Ability to simulate deployments without making actual changes
 - **Detailed Logging**: Comprehensive logging with timestamps and log levels
 
 ## SSH Authentication
@@ -80,73 +79,54 @@ function ssh_cmd() {
 }
 ```
 
-## Multi-Runtime Support
+## Java Application Support
 
-The pipeline now supports any application type through a generic, configurable approach:
+This pipeline is specifically designed for Java applications deployed as systemd services:
 
-- **Runtime Agnostic**: Deploy any type of application by configuring a few key variables
-- **Flexible Configuration**: Customise build commands, runtime paths, and service configuration
-- **Artifact Handling**: Smart detection of single files vs. directories for proper packaging
-- **Systemd Service Templates**: Fully configurable service files with custom commands and environment variables
+- **Java-Optimized**: Configured for Java applications with JVM options and classpath handling
+- **Maven/Gradle Support**: Works with both Maven and Gradle build systems
+- **JAR Deployment**: Handles JAR file deployment with proper versioning
+- **JVM Configuration**: Configurable JVM options for different environments
+- **Systemd Integration**: Creates and manages systemd services for Java applications
 
-### Example Configuration
+### Default Java Configuration
 
 ```yaml
 variables:
   # Application details
-  APP_NAME: "my-application"
+  APP_NAME: "my-java-app"
   APP_VERSION: "1.0.0"
   
-  # Build configuration
-  BUILD_COMMAND: "mvn clean package -DskipTests"  # Or any other build command
+  # Build configuration (Maven)
+  BUILD_COMMAND: "./mvnw clean package -DskipTests"
   
   # Artifact settings
-  ARTIFACT_PATTERN: "target/*.jar"  # Pattern to locate artifacts
-  ARTIFACT_PATH: "target/my-app.jar"  # Specific artifact path
-  ARTIFACT_NAME: "my-app.jar"  # Name when deployed
+  ARTIFACT_PATH: "target/my-java-app-1.0.0.jar"
+  ARTIFACT_NAME: "my-java-app-1.0.0.jar"
   
-  # Runtime configuration
-  RUNTIME_PATH: "/usr/bin/java"  # Path to runtime executable
-  RUNTIME_OPTS: "-Xmx512m"  # Runtime options
+  # Java runtime configuration
+  RUNTIME_PATH: "/usr/bin/java"
+  RUNTIME_OPTS: "-Xmx512m -Dspring.profiles.active=${CI_ENVIRONMENT_NAME}"
   
   # Service configuration
-  START_COMMAND: "/usr/bin/java -Xmx512m -jar /opt/app/current/my-app.jar"
-  WORKING_DIRECTORY: "/opt/app"
-  SERVICE_ENV_VARS: "BUILD_ID=${CI_JOB_ID},ENV=${CI_ENVIRONMENT_NAME}"
+  START_COMMAND: "/usr/bin/java -Xmx512m -jar /opt/app/current/my-java-app-1.0.0.jar"
+  WORKING_DIRECTORY: "/opt/app/current"
+  SERVICE_ENV_VARS: "JAVA_HOME=/usr/lib/jvm/java-17-openjdk,SPRING_PROFILES_ACTIVE=${CI_ENVIRONMENT_NAME}"
 ```
 
-### For Java Applications
+### Java Deployment Process
 
-```yaml
-BUILD_COMMAND: "mvn clean package -DskipTests"
-ARTIFACT_PATTERN: "target/*.jar"
-START_COMMAND: "${RUNTIME_PATH} ${RUNTIME_OPTS} -jar ${CURRENT_LINK}/${ARTIFACT_NAME}"
-```
+The deployment process is optimized for Java applications:
 
-### For .NET Applications
+1. **Build**: Executes Maven or Gradle to build the Java application
+2. **Artifact Collection**: Collects the JAR file(s) from the target directory
+3. **Upload**: Transfers the JAR file to the deployment server
+4. **Service Configuration**: Creates a systemd service with appropriate Java options
+5. **Health Check**: Validates the application is running correctly
 
-```yaml
-BUILD_COMMAND: "dotnet publish -c Release"
-ARTIFACT_PATTERN: "bin/Release/net6.0/publish/*"
-START_COMMAND: "${RUNTIME_PATH} ${CURRENT_LINK}/${APP_NAME}.dll ${RUNTIME_OPTS}"
-```
+### For Other Application Types
 
-### For Node.js Applications
-
-```yaml
-BUILD_COMMAND: "npm ci && npm run build"
-ARTIFACT_PATTERN: "dist/*"
-START_COMMAND: "${RUNTIME_PATH} ${CURRENT_LINK}/index.js"
-```
-
-### Deployment Process
-
-The deployment process is now runtime-agnostic:
-
-1. **Build**: Executes the configured `BUILD_COMMAND`
-2. **Artifact Collection**: Collects artifacts using the specified pattern or path
-3. **Upload**: Automatically handles single files or directories appropriately
-4. **Service Configuration**: Creates systemd service using the configured start command and environment variables
+While this pipeline is optimized for Java applications, it can be adapted for other application types by modifying the build, artifact, and service configuration. See the GENERIC_ADAPTATION.md file for guidance on adapting this pipeline for other application types.
 
 ## Multi-Server Deployment
 
@@ -215,34 +195,6 @@ The pipeline includes a comprehensive testing framework to ensure it works corre
 
 See the [tests/README.md](tests/README.md) for detailed information about the testing approach.
 
-## Rollback Mechanism
-
-The pipeline includes two types of rollbacks:
-
-1. **Automatic Rollback**: Triggered on deployment failure
-2. **Manual Rollback**: Can be manually triggered for any environment
-
-Rollbacks can use either:
-- The last successful deployment ID
-- The latest backup if no successful deployment ID exists
-
-## Configuration
-
-### Environment Variables
-
-Key variables that can be customised:
-
-- `APP_NAME`: Name of the Java application
-- `APP_USER`: User for deployment operations
-- `MAX_BACKUPS`: Number of backups to retain
-- `HEALTH_CHECK_URL`: URL to validate deployment
-- `HEALTH_CHECK_RETRIES`: Number of health check attempts
-- `NOTIFICATION_METHOD`: How to send notifications (email, notification_service)
-
-### Branch Rules
-
-- **Test**: `develop`, `feature/*`
-- **Staging**: `develop`, `release/*`
 - **Production**: `main`, `master`, `production`
 
 ## Usage
