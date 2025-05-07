@@ -329,11 +329,7 @@ Our comprehensive testing framework ensures that the pipeline works correctly in
 
 ### Testing Philosophy
 
-Our testing philosophy is built on a fundamental principle:
-
-> "The files we want to ship are the files under test, with no divergence from that end state."
-
-This means we use the exact same CI files in both production and testing environments, ensuring complete consistency.
+Our testing philosophy is focused on consistency and reliability. We use the exact same CI files in both production and testing environments, ensuring complete consistency between test and production deployments.
 
 ### Quick Start
 
@@ -644,7 +640,7 @@ variables:
 
 The pipeline includes a comprehensive testing framework to ensure it works correctly in all environments:
 
-- **Principle**: "The files we want to ship are the files under test, with no divergence from that end state"
+- **Principle**: Ensuring consistency between test and production environments
 - **Scripts**: Multiple test scripts with increasing levels of coverage (see `/tests` directory)
 - **Components**:
   - Basic pipeline structure validation using gitlab-ci-local
