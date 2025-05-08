@@ -18,7 +18,7 @@ A modular, multi-environment GitLab CI/CD pipeline specifically designed for Jav
 - [Auto-Promotion Prevention](#auto-promotion-prevention)
 - [Testing Framework](#testing-framework)
 - [Advanced Enhancements](#advanced-enhancements)
-- [Adapting for Other Application Types](#adapting-for-other-application-types)
+
 - [Deployment Process](#deployment-process)
 
 ## Overview
@@ -520,118 +520,16 @@ function create_systemd_service() {
 }
 ```
 
-## Adapting for Other Application Types
-
-While this GitLab CI/CD pipeline is optimized for Java applications, it can be adapted for other application types with some modifications.
-
-### General Adaptation Principles
-
-1. **Keep the Modular Structure**: Maintain the separation of concerns with modular components
-2. **Customize Build Process**: Modify the build commands for your specific runtime
-3. **Adjust Artifact Handling**: Update artifact paths and patterns for your application type
-4. **Configure Service**: Adapt the systemd service configuration for your runtime
-5. **Update Health Checks**: Modify health check URLs and validation methods
-
-### Configuration Variables to Modify
-
-For any application type, you'll need to modify these key variables in `ci/variables.yml`:
-
-```yaml
-variables:
-  # Application details
-  APP_NAME: "your-application"
-  APP_VERSION: "1.0.0"
-  
-  # Build configuration
-  BUILD_COMMAND: "your-build-command"  # Modify this for your build system
-  
-  # Artifact settings
-  ARTIFACT_PATH: "path/to/your/artifact"  # Modify for your build output
-  ARTIFACT_NAME: "your-artifact-name"  # The name when deployed
-  
-  # Runtime configuration
-  RUNTIME_PATH: "/path/to/runtime"  # Path to your runtime executable
-  RUNTIME_OPTS: "runtime-options"  # Runtime-specific options
-  
-  # Service configuration
-  START_COMMAND: "command-to-start-your-application"
-  WORKING_DIRECTORY: "/path/to/app/directory"
-  SERVICE_ENV_VARS: "ENV_VAR1=value1,ENV_VAR2=value2"
-```
-
-### Example: Node.js Applications
-
-```yaml
-variables:
-  # Build configuration
-  BUILD_COMMAND: "npm ci && npm run build"
-  
-  # Artifact settings
-  ARTIFACT_PATH: "dist/"
-  ARTIFACT_NAME: "dist"
-  
-  # Runtime configuration
-  RUNTIME_PATH: "/usr/bin/node"
-  RUNTIME_OPTS: "--max-old-space-size=512"
-  
-  # Service configuration
-  START_COMMAND: "/usr/bin/node /opt/app/current/server.js"
-  WORKING_DIRECTORY: "/opt/app/current"
-  SERVICE_ENV_VARS: "NODE_ENV=${CI_ENVIRONMENT_NAME},PORT=3000"
-```
-
-### Example: Python Applications
-
-```yaml
-variables:
-  # Build configuration
-  BUILD_COMMAND: "python -m pip install -r requirements.txt"
-  
-  # Artifact settings
-  ARTIFACT_PATH: "."
-  ARTIFACT_NAME: "app"
-  
-  # Runtime configuration
-  RUNTIME_PATH: "/usr/bin/python3"
-  RUNTIME_OPTS: "-u"
-  
-  # Service configuration
-  START_COMMAND: "/opt/app/current/venv/bin/python /opt/app/current/app.py"
-  WORKING_DIRECTORY: "/opt/app/current"
-  SERVICE_ENV_VARS: "PYTHONUNBUFFERED=1,FLASK_ENV=${CI_ENVIRONMENT_NAME}"
-```
-
-### Example: .NET Applications
-
-```yaml
-variables:
-  # Build configuration
-  BUILD_COMMAND: "dotnet publish -c Release -o ./publish"
-  
-  # Artifact settings
-  ARTIFACT_PATH: "publish/"
-  ARTIFACT_NAME: "publish"
-  
-  # Runtime configuration
-  RUNTIME_PATH: "/usr/bin/dotnet"
-  RUNTIME_OPTS: "--configuration Release"
-  
-  # Service configuration
-  START_COMMAND: "/usr/bin/dotnet /opt/app/current/YourApp.dll"
-  WORKING_DIRECTORY: "/opt/app/current"
-  SERVICE_ENV_VARS: "ASPNETCORE_ENVIRONMENT=${CI_ENVIRONMENT_NAME},DOTNET_PRINT_TELEMETRY_MESSAGE=false"
-```
-
 ## Deployment Process
 
 1. Validate branch permissions and auto-promotion settings
-2. Build the application
+2. Build the Java application using Maven/Gradle
 3. Create deployment directories
 4. Backup current deployment
-5. Upload application JAR
-6. Configure systemd service
+5. Upload Java JAR artifact
+6. Configure Java-specific systemd service
 7. Update symlinks for atomic deployment
-8. Start the service
+8. Start the Java service
 9. Perform health checks
 10. Clean up old deployments
 11. Send notifications

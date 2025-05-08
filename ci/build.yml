@@ -1,22 +1,21 @@
 ##############################################################################
 # BUILD JOB TEMPLATES
 #
-# This file defines how the application is built and validated before deployment.
-# It contains templates for building different application types (Java, .NET, Node.js)
-# and for validating branches to ensure only approved branches can be deployed.
+# This file defines how the Java application is built and validated before deployment.
+# It contains templates for building Java applications and for validating branches
+# to ensure only approved branches can be deployed.
 #
 # HOW TO USE:
-# 1. Set APP_TYPE in variables.yml to your application type (java, dotnet, node)
-# 2. These templates are extended by concrete jobs in the main .gitlab-ci.yml
-# 3. For testing without actual builds, set CI_TEST_MODE to "true"
-# 4. To run tests, use the build_with_tests_template instead of build_template
+# 1. These templates are extended by concrete jobs in the main .gitlab-ci.yml
+# 2. For testing without actual builds, set CI_TEST_MODE to "true"
+# 3. To run tests, use the build_with_tests_template instead of build_template
 #
 # CUSTOMIZATION:
 # - Adjust runtime settings in the variables.yml file
 # - Modify the allowed branches in validate_branch_template
 ##############################################################################
 
-# Base build template with common settings for all application types
+# Base build template with common settings for Java applications
 .build_base_template:
   stage: build
   before_script:
@@ -41,7 +40,7 @@
       when: never
     - if: '$CI_COMMIT_BRANCH'
 
-# Configurable build template that can be extended for any application type
+# Configurable build template that can be extended for Java applications
 .build_template:
   extends: .build_base_template
   script:
@@ -81,34 +80,7 @@
     paths:
       - .m2/repository
 
-# .NET-specific build template
-.build_dotnet_template:
-  extends: .build_template
-  image: mcr.microsoft.com/dotnet/sdk:6.0
-  variables:
-    APP_TYPE: "dotnet"
-  before_script:
-    - echo "Building $APP_NAME with .NET Core"
-    - dotnet --version
-  cache:
-    key: "${CI_JOB_NAME}-${CI_COMMIT_REF_SLUG}"
-    paths:
-      - .nuget/packages
 
-# Node.js-specific build template
-.build_node_template:
-  extends: .build_template
-  image: node:16
-  variables:
-    APP_TYPE: "node"
-  before_script:
-    - echo "Building $APP_NAME with Node.js"
-    - node --version
-    - npm --version
-  cache:
-    key: "${CI_JOB_NAME}-${CI_COMMIT_REF_SLUG}"
-    paths:
-      - node_modules/
 
 # Build with tests template
 .build_with_tests_template:

@@ -1,7 +1,7 @@
 ##############################################################################
-# DEPLOYMENT JOB TEMPLATES
+# JAVA APPLICATION DEPLOYMENT JOB TEMPLATES
 #
-# This file defines how the application is deployed to various environments.
+# This file defines how Java applications are deployed to various environments.
 # It contains templates for standard deployment and cleanup operations with
 # comprehensive error handling and logging.
 #
@@ -9,18 +9,18 @@
 # 1. The deployment process follows a step-by-step approach with validation at each step
 # 2. Each step is logged with timestamps and detailed status messages
 # 3. Timeouts prevent hanging deployments and ensure pipeline reliability
-# 4. Health checks verify the application is running correctly after deployment
+# 4. Health checks verify the Java application is running correctly after deployment
 #
 # DEPLOYMENT STEPS:
 # 1. Create required directories on the deployment server
 # 2. Backup current deployment for potential rollback
 # 3. Create new deployment directory
-# 4. Upload application JAR file
-# 5. Set up systemd service file
+# 4. Upload Java JAR file
+# 5. Set up Java-specific systemd service file
 # 6. Stop current service
 # 7. Update symlink to point to new deployment
 # 8. Enable linger for user service persistence
-# 9. Start the service
+# 9. Start the Java service
 # 10. Perform health checks to verify deployment
 #
 # TESTING:
@@ -28,16 +28,18 @@
 # - Use the deploy_test_template for test runs
 ##############################################################################
 
-# Main deployment template with comprehensive error handling and timeouts
+# Main Java application deployment template with comprehensive error handling and timeouts
 .deploy_template:
   extends: .functions
   stage: deploy
   variables:
     # Set a default timeout for deployment operations
     DEPLOYMENT_TIMEOUT: 300  # 5 minutes in seconds
+    # Define Java home if not already set
+    JAVA_HOME: "/usr/lib/jvm/java-17-openjdk-amd64"
   before_script:
     - |
-      echo "Starting deployment of $APP_NAME to $CI_ENVIRONMENT_NAME environment"
+      echo "Starting deployment of Java application $APP_NAME to $CI_ENVIRONMENT_NAME environment"
       echo "Deployment host: $DEPLOY_HOST"
       echo "Application user: $APP_USER"
       echo "Java home: $JAVA_HOME"

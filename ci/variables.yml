@@ -1,12 +1,12 @@
 ##############################################################################
 # GLOBAL VARIABLES CONFIGURATION
 #
-# This file defines all variables used throughout the CI/CD pipeline.
+# This file defines all variables used throughout the Java deployment CI/CD pipeline.
 # Variables can be overridden in environment-specific sections below or
 # directly in GitLab CI/CD variables settings.
 #
 # HOW TO CUSTOMIZE:
-# 1. Update the variables below to match your project requirements
+# 1. Update the variables below to match your Java project requirements
 # 2. For environment-specific settings, modify the environment sections at the bottom
 # 3. For testing without making actual changes, set CI_TEST_MODE to "true"
 ##############################################################################
@@ -15,8 +15,8 @@ variables:
   ###########################
   # APPLICATION SETTINGS
   ###########################
-  # Application name (used for deployment directories and service names)
-  APP_NAME: "application"
+  # Java application name (used for deployment directories and service names)
+  APP_NAME: "java-application"
   
   # Application version (can be overridden in CI/CD variables)
   APP_VERSION: "1.0.0"
@@ -24,11 +24,11 @@ variables:
   ###########################
   # BUILD CONFIGURATION
   ###########################
-  # Build command to execute (customize for your application type)
+  # Build command to execute for your Java application
   # Examples:
-  # - Java/Maven: "mvn clean package -DskipTests"
-  # - .NET: "dotnet publish -c Release"
-  # - Node.js: "npm ci && npm run build"
+  # - Maven: "mvn clean package -DskipTests"
+  # - Maven with custom profile: "mvn clean package -P production -DskipTests"
+  # - Gradle: "./gradlew build -x test"
   BUILD_COMMAND: "mvn clean package -DskipTests"
   
   # Path to the runtime executable (e.g., java, dotnet, node)
@@ -52,11 +52,10 @@ variables:
   ###########################
   # SERVICE CONFIGURATION
   ###########################
-  # Command to start the application (will be used in systemd service)
+  # Command to start the Java application (will be used in systemd service)
   # Examples:
-  # - Java: "${RUNTIME_PATH} ${RUNTIME_OPTS} -jar ${CURRENT_LINK}/${ARTIFACT_NAME}"
-  # - .NET: "${RUNTIME_PATH} ${CURRENT_LINK}/${APP_NAME}.dll ${RUNTIME_OPTS}"
-  # - Node.js: "${RUNTIME_PATH} ${CURRENT_LINK}/index.js"
+  # - Standard JAR: "${RUNTIME_PATH} ${RUNTIME_OPTS} -jar ${CURRENT_LINK}/${ARTIFACT_NAME}"
+  # - With Spring profiles: "${RUNTIME_PATH} -Dspring.profiles.active=${CI_ENVIRONMENT_NAME} ${RUNTIME_OPTS} -jar ${CURRENT_LINK}/${ARTIFACT_NAME}"
   START_COMMAND: "${RUNTIME_PATH} ${RUNTIME_OPTS} -jar ${CURRENT_LINK}/${ARTIFACT_NAME}"
   
   # Working directory for the application

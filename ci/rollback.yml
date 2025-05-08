@@ -1,7 +1,7 @@
 ##############################################################################
-# ROLLBACK JOB TEMPLATES
+# JAVA APPLICATION ROLLBACK JOB TEMPLATES
 #
-# This file defines how the application is rolled back in case of deployment failures.
+# This file defines how Java applications are rolled back in case of deployment failures.
 # It contains templates for both manual and automatic rollbacks with comprehensive
 # error handling and validation.
 #
@@ -12,9 +12,9 @@
 #
 # HOW IT WORKS:
 # 1. Identify the appropriate rollback target using the strategies above
-# 2. Stop the current service
+# 2. Stop the current Java service
 # 3. Update the symlink to point to the rollback target
-# 4. Start the service
+# 4. Start the Java service
 # 5. Perform health checks to verify the rollback was successful
 #
 # MANUAL VS AUTOMATIC:

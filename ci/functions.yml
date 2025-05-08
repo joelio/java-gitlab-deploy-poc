@@ -1,9 +1,9 @@
 ##############################################################################
-# DEPLOYMENT FUNCTIONS
+# JAVA APPLICATION DEPLOYMENT FUNCTIONS
 #
 # This file defines all shell functions used throughout the CI/CD pipeline for
-# deployment operations. These functions handle SSH connections, file transfers,
-# service management, and deployment validation.
+# Java application deployment operations. These functions handle SSH connections,
+# file transfers, Java service management, and deployment validation.
 #
 # KEY FEATURES:
 # - Comprehensive error handling and validation for all operations
@@ -17,7 +17,7 @@
 # 3. For testing without making actual changes, set CI_TEST_MODE to "true"
 #
 # CUSTOMIZATION:
-# - Add new functions as needed for your specific deployment requirements
+# - Add new functions as needed for your specific Java deployment requirements
 # - Modify existing functions to match your infrastructure setup
 ##############################################################################
 
@@ -321,38 +321,31 @@
         return 0
       }
       
-      # Function to setup systemd service
+      # Function to setup systemd service for Java application
       function setup_systemd_service() {
-        log "INFO" "Setting up systemd service"
+        log "INFO" "Setting up Java application systemd service"
         
         if is_test_mode; then
-          log "TEST" "Would setup systemd service for ${APP_NAME}"
+          log "TEST" "Would setup Java systemd service for ${APP_NAME}"
           return 0
         fi
         
         # Create systemd service directory if it doesn't exist
         ssh_cmd "mkdir -p ~/.config/systemd/user/"
         
-        # Create systemd service file
+        # Create Java systemd service content (YAML-compatible multiline string)
         local service_file="$APP_NAME.service"
-        local service_content=$(cat <<EOF
-      [Unit]
-      Description=${APP_NAME} Service
-      After=network.target
-      
-      [Service]
-      Type=simple
-      WorkingDirectory=${CURRENT_LINK}
-      ExecStart=${START_COMMAND:-${RUNTIME_PATH:-/usr/bin/java} ${RUNTIME_OPTS} -jar ${CURRENT_LINK}/${ARTIFACT_NAME}}
-      SuccessExitStatus=143
-      TimeoutStopSec=10
-      Restart=on-failure
-      RestartSec=5
-      
-      [Install]
-      WantedBy=default.target
-      EOF
-        )
+        
+        # Build the service file content piece by piece to avoid YAML parsing issues
+        local unit_section="[Unit]\nDescription=${APP_NAME} Java Application Service\nAfter=network.target\n\n"
+        local service_section="[Service]\nType=simple\nWorkingDirectory=${CURRENT_LINK}\n"
+        service_section+="Environment=\"JAVA_HOME=${JAVA_HOME:-/usr/lib/jvm/java-17-openjdk-amd64}\"\n"
+        service_section+="ExecStart=${START_COMMAND:-${RUNTIME_PATH:-/usr/bin/java} ${RUNTIME_OPTS} -jar ${CURRENT_LINK}/${ARTIFACT_NAME}}\n"
+        service_section+="SuccessExitStatus=143\nTimeoutStopSec=10\nRestart=on-failure\nRestartSec=5\n\n"
+        local install_section="[Install]\nWantedBy=default.target"
+        
+        # Combine all sections
+        local service_content="$unit_section$service_section$install_section"
         
         # Create local temp file for service definition
         local temp_service_file=$(mktemp)

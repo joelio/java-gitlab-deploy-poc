@@ -1,6 +1,6 @@
-# Local Testing Guide for GitLab CI/CD Pipeline
+# Local Testing Guide for Java Application GitLab CI/CD Pipeline
 
-This guide provides methods to test the GitLab CI/CD pipeline locally on a Mac M2, targeting Red Hat 8/9 UBI environments with systemd support.
+This guide provides methods to test the Java application GitLab CI/CD pipeline locally on a Mac M2, targeting Red Hat 8/9 UBI environments with systemd support for Java deployments.
 
 ## Testing Approaches
 
@@ -20,6 +20,9 @@ brew install gitlab-runner
 
 # Install Podman (for container-based testing)
 brew install podman
+
+# Install Java (for local testing)
+brew install openjdk@17
 
 # Initialize Podman machine with more resources
 podman machine init --cpus 2 --memory 4096 --disk-size 20

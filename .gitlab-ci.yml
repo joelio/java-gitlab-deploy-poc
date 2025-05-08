@@ -1,12 +1,12 @@
 ##############################################################################
-# GITLAB CI/CD PIPELINE CONFIGURATION
+# JAVA APPLICATION DEPLOYMENT PIPELINE CONFIGURATION
 # 
-# This is the main entry point for the CI/CD pipeline. It includes modular
-# components from the /ci directory to keep the configuration organized and
+# This is the main entry point for the Java deployment CI/CD pipeline. It includes 
+# modular components from the /ci directory to keep the configuration organized and
 # maintainable.
 #
 # HOW TO USE THIS PIPELINE:
-# 1. Customize variables in /ci/variables.yml for your project and environments
+# 1. Customize variables in /ci/variables.yml for your Java project and environments
 # 2. The pipeline will automatically build, deploy, and notify based on branches
 # 3. For testing without actual deployment, set CI_TEST_MODE to "true"
 #
@@ -40,7 +40,7 @@ stages:
 validate_branch:
   extends: .validate_branch_template
 
-# Concrete build job
+# Concrete build job for Java application
 build:
   extends: .build_template
 
@@ -63,7 +63,9 @@ deploy_staging:
   environment:
     name: staging
   rules:
-    - if: '$CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH =~ /^release\/'
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+      when: manual
+    - if: '$CI_COMMIT_BRANCH =~ /^release/'
       when: manual
 
 deploy_production:
