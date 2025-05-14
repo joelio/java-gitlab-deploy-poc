@@ -108,7 +108,8 @@ rollback_auto_test:
   environment:
     name: test
   needs:
-    - deploy_test
+    - job: deploy_test
+      optional: true
 
 rollback_auto_staging:
   extends:
@@ -117,7 +118,8 @@ rollback_auto_staging:
   environment:
     name: staging
   needs:
-    - deploy_staging
+    - job: deploy_staging
+      optional: true
 
 rollback_auto_production:
   extends:
@@ -126,7 +128,8 @@ rollback_auto_production:
   environment:
     name: production
   needs:
-    - deploy_production
+    - job: deploy_production
+      optional: true
 
 # Cleanup jobs for each environment
 cleanup_test:
@@ -136,7 +139,8 @@ cleanup_test:
   environment:
     name: test
   needs:
-    - deploy_test
+    - job: deploy_test
+      optional: true
 
 cleanup_staging:
   extends:
@@ -145,7 +149,8 @@ cleanup_staging:
   environment:
     name: staging
   needs:
-    - deploy_staging
+    - job: deploy_staging
+      optional: true
 
 cleanup_production:
   extends:
@@ -154,7 +159,8 @@ cleanup_production:
   environment:
     name: production
   needs:
-    - deploy_production
+    - job: deploy_production
+      optional: true
 
 # Notification jobs for each environment
 notify_success_test:
@@ -164,7 +170,8 @@ notify_success_test:
   environment:
     name: test
   needs:
-    - deploy_test
+    - job: deploy_test
+      optional: true
 
 notify_success_staging:
   extends: 
@@ -173,7 +180,8 @@ notify_success_staging:
   environment:
     name: staging
   needs:
-    - deploy_staging
+    - job: deploy_staging
+      optional: true
 
 notify_success_production:
   extends: 
@@ -182,7 +190,8 @@ notify_success_production:
   environment:
     name: production
   needs:
-    - deploy_production
+    - job: deploy_production
+      optional: true
 
 notify_failure_test:
   extends: 
@@ -191,7 +200,8 @@ notify_failure_test:
   environment:
     name: test
   needs:
-    - deploy_test
+    - job: deploy_test
+      optional: true
 
 notify_failure_staging:
   extends: 
@@ -200,7 +210,8 @@ notify_failure_staging:
   environment:
     name: staging
   needs:
-    - deploy_staging
+    - job: deploy_staging
+      optional: true
 
 notify_failure_production:
   extends: 
@@ -209,4 +220,5 @@ notify_failure_production:
   environment:
     name: production
   needs:
-    - deploy_production
+    - job: deploy_production
+      optional: true
