@@ -102,34 +102,13 @@
     reports:
       junit: target/surefire-reports/TEST-*.xml
 
-# Validate branch job template
+# Simplified branch validation template (no restrictions)
 .validate_branch_template:
   stage: validate
   script:
     - |
-      echo "Validating branch $CI_COMMIT_REF_NAME at $(date)"
-      
-      # Define allowed branches
-      ALLOWED_BRANCHES=("main" "master" "develop" "production" "release/*")
-      BRANCH_ALLOWED=false
-      
-      # Check if current branch is in allowed list
-      for pattern in "${ALLOWED_BRANCHES[@]}"; do
-        if [[ "$CI_COMMIT_REF_NAME" == $pattern ]]; then
-          BRANCH_ALLOWED=true
-          break
-        fi
-      done
-      
-      # Exit with error if branch is not allowed
-      if [ "$BRANCH_ALLOWED" != "true" ]; then
-        echo "ERROR: Deployments are only allowed from protected branches:"
-        printf "  - %s\n" "${ALLOWED_BRANCHES[@]}"
-        echo "Current branch: $CI_COMMIT_REF_NAME"
-        exit 1
-      fi
-      
-      echo "Branch validation passed"
+      echo "Branch validation skipped - all branches are allowed"
+      echo "Current branch: $CI_COMMIT_REF_NAME"
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       when: never

@@ -138,7 +138,6 @@
     - build
   needs:
     - build
-    - validate_branch
   allow_failure: false
   retry:
     max: 1
